@@ -52,6 +52,23 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				// Debate-specific colors
+				affirmative: {
+					DEFAULT: 'hsl(var(--affirmative))',
+					foreground: 'hsl(var(--affirmative-foreground))'
+				},
+				negative: {
+					DEFAULT: 'hsl(var(--negative))',
+					foreground: 'hsl(var(--negative-foreground))'
+				},
+				judge: {
+					DEFAULT: 'hsl(var(--judge))',
+					foreground: 'hsl(var(--judge-foreground))'
+				},
+				'live-pulse': 'hsl(var(--live-pulse))',
+				'rating-gold': 'hsl(var(--rating-gold))',
+				'rating-silver': 'hsl(var(--rating-silver))',
+				'rating-bronze': 'hsl(var(--rating-bronze))',
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
@@ -84,11 +101,42 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'pulse-glow': {
+					'0%, 100%': {
+						boxShadow: '0 0 5px hsl(var(--primary) / 0.3)'
+					},
+					'50%': {
+						boxShadow: '0 0 20px hsl(var(--primary) / 0.6)'
+					}
+				},
+				'typewriter': {
+					from: { width: '0' },
+					to: { width: '100%' }
+				},
+				'live-dot': {
+					'0%, 100%': { 
+						transform: 'scale(1)',
+						backgroundColor: 'hsl(var(--live-pulse))'
+					},
+					'50%': { 
+						transform: 'scale(1.2)',
+						backgroundColor: 'hsl(var(--live-pulse) / 0.8)'
+					}
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+				'typewriter': 'typewriter 2s steps(40, end)',
+				'live-dot': 'live-dot 1.5s ease-in-out infinite'
+			},
+			backgroundImage: {
+				'gradient-primary': 'var(--gradient-primary)',
+				'gradient-affirmative': 'var(--gradient-affirmative)',
+				'gradient-negative': 'var(--gradient-negative)',
+				'gradient-hero': 'var(--gradient-hero)'
 			}
 		}
 	},
