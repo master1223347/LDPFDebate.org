@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Trophy, Target, Zap } from "lucide-react";
-
+import { Link } from "react-router-dom";
 export const HeroStatsPanel = () => {
   const getRatingColor = (rating: number) => {
     if (rating >= 2000) return "text-rating-gold";
@@ -23,16 +23,18 @@ export const HeroStatsPanel = () => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       {/* Profile Card */}
-      <Card className="bg-gradient-hero border-border">
-        <CardContent className="p-6 text-center">
-          <Avatar className="w-20 h-20 mx-auto mb-4 ring-2 ring-primary">
-            <AvatarImage src="/placeholder-avatar.jpg" alt="Profile" />
-            <AvatarFallback className="text-lg">JD</AvatarFallback>
-          </Avatar>
-          <h3 className="font-bold text-lg text-foreground">{stats.name}</h3>
-          <p className="text-sm text-muted-foreground">{stats.school}</p>
-        </CardContent>
-      </Card>
+      <Link to="/profile">
+        <Card className="bg-gradient-hero border-border">
+          <CardContent className="p-6 text-center">
+            <Avatar className="w-20 h-20 mx-auto mb-4 ring-2 ring-primary">
+              <AvatarImage src="/placeholder-avatar.jpg" alt="Profile" />
+              <AvatarFallback className="text-lg">JD</AvatarFallback>
+            </Avatar>
+            <h3 className="font-bold text-lg text-foreground">{stats.name}</h3>
+            <p className="text-sm text-muted-foreground">{stats.school}</p>
+          </CardContent>
+        </Card>
+      </Link>
 
       {/* Ratings Card */}
       <Card className="bg-gradient-hero border-border">
