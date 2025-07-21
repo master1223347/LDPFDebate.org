@@ -7,16 +7,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Link } from "react-router-dom";
 
 export const Navbar = () => {
   return (
     <nav className="flex justify-between items-center px-6 py-4 bg-card border-b border-border">
-      <div className="flex items-center space-x-2">
+      <Link to="/" className="flex items-center space-x-2" style={{ textDecoration: "none" }}>
         <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
           <span className="text-primary-foreground font-bold text-lg">D</span>
         </div>
         <h1 className="text-xl font-bold text-foreground">Debate.com</h1>
-      </div>
+      </Link>
       
       <div className="flex items-center space-x-4">
         <Button variant="ghost" size="icon" className="relative">

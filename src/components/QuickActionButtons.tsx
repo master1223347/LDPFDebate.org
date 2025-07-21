@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Link } from "react-router-dom";
 import { 
   Flame, 
   Users, 
@@ -19,42 +20,48 @@ export const QuickActionButtons = () => {
       title: "Practice",
       description: "Sharpen your skills",
       variant: "practice" as const,
-      badge: "Solo"
+      badge: "Solo",
+      route: "/learn"
     },
     {
       icon: Users,
       title: "PvP",
       description: "Challenge real opponents",
       variant: "pvp" as const,
-      badge: "Live"
+      badge: "Live",
+      route: "/vs-player"
     },
     {
       icon: Bot,
       title: "PvAI",
       description: "Debate against AI",
       variant: "ai" as const,
-      badge: "GPT-4"
+      badge: "GPT-4",
+      route: "/vs-ai"
     },
     {
       icon: Eye,
       title: "Spectate",
       description: "Watch live debates",
       variant: "spectate" as const,
-      badge: "42 Live"
+      badge: "42 Live",
+      route: "/spectate"
     },
     {
       icon: Trophy,
       title: "Leaderboard",
       description: "View rankings",
       variant: "leaderboard" as const,
-      badge: "Top 100"
+      badge: "Top 100",
+      route: "/leaderboard"
     },
     {
       icon: Link2,
       title: "Join Match",
       description: "Enter with room code",
       variant: "join" as const,
-      badge: "Code"
+      badge: "Code",
+      route: "/join"
     }
   ];
 
@@ -76,45 +83,42 @@ export const QuickActionButtons = () => {
       {actions.map((action) => {
         const Icon = action.icon;
         return (
-          <Card 
-            key={action.title}
-            className={`
-              group cursor-pointer transition-all duration-300 transform hover:scale-105 
-              ${getVariantClasses(action.variant)}
-              border-2 hover:animate-pulse-glow
-            `}
-          >
-            <CardContent className="p-8 text-center relative overflow-hidden">
-              {/* Background decoration */}
-              <div className="absolute inset-0 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Icon className="w-32 h-32 absolute -top-4 -right-4 rotate-12" />
-              </div>
-              
-              {/* Badge */}
-              <div className="absolute top-4 right-4">
-                <Badge variant="secondary" className="text-xs">
-                  {action.badge}
-                </Badge>
-              </div>
-              
-              {/* Content */}
-              <div className="relative z-10">
-                <div className="mb-4 flex justify-center">
-                  <div className="p-4 rounded-full bg-card/50 group-hover:bg-card/70 transition-colors">
-                    <Icon className="w-8 h-8 text-foreground" />
-                  </div>
+          <Link to={action.route} key={action.title} style={{ textDecoration: "none" }}>
+            <Card 
+              className={`
+                group cursor-pointer transition-all duration-300 transform hover:scale-105 
+                ${getVariantClasses(action.variant)}
+                border-2 hover:animate-pulse-glow
+              `}
+            >
+              <CardContent className="p-8 text-center relative overflow-hidden">
+                {/* Background decoration */}
+                <div className="absolute inset-0 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Icon className="w-32 h-32 absolute -top-4 -right-4 rotate-12" />
                 </div>
-                
-                <h3 className="text-xl font-bold text-foreground mb-2 group-hover:text-primary-foreground transition-colors">
-                  {action.title}
-                </h3>
-                
-                <p className="text-sm text-muted-foreground group-hover:text-primary-foreground/80 transition-colors">
-                  {action.description}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+                {/* Badge */}
+                <div className="absolute top-4 right-4">
+                  <Badge variant="secondary" className="text-xs">
+                    {action.badge}
+                  </Badge>
+                </div>
+                {/* Content */}
+                <div className="relative z-10">
+                  <div className="mb-4 flex justify-center">
+                    <div className="p-4 rounded-full bg-card/50 group-hover:bg-card/70 transition-colors">
+                      <Icon className="w-8 h-8 text-foreground" />
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground mb-2 group-hover:text-primary-foreground transition-colors">
+                    {action.title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground group-hover:text-primary-foreground/80 transition-colors">
+                    {action.description}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
         );
       })}
     </div>
