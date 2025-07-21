@@ -12,6 +12,11 @@ import Leaderboard from "./pages/Leaderboard";
 import Spectate from "./pages/Spectate";
 import Learn from "./pages/Learn";
 import NotFound from "./pages/NotFound";
+import SignUp from "./pages/SignUp";
+import Login from "./pages/LogIn";
+
+// Inside <Routes>
+
 
 const queryClient = new QueryClient();
 
@@ -30,6 +35,8 @@ const App = () => (
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/spectate" element={<Spectate />} />
           <Route path="/learn" element={<Learn />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/login" element={<Login />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
