@@ -11,6 +11,7 @@ import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import Spectate from "./pages/Spectate";
 import Learn from "./pages/Learn";
+import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import SignUp from "./pages/SignUp";
 import Login from "./pages/LogIn";
@@ -27,6 +28,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          <Route path="/landing" element={<Landing />} />
           <Route path="/" element={<Index />} />
           <Route path="/vs-ai" element={<PlayerVsAI />} />
           <Route path="/vs-player" element={<PlayerVsPlayer />} />
