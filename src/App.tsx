@@ -15,7 +15,7 @@ import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import SignUp from "./pages/SignUp";
 import Login from "./pages/LogIn";
-
+import Lobby from "./pages/Lobby";
 // Inside <Routes>
 
 
@@ -39,6 +39,7 @@ const App = () => (
           <Route path="/learn" element={<Learn />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/lobby" element={<Lobby />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
