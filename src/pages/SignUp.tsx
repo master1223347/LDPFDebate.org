@@ -16,6 +16,7 @@ import { useState } from "react";
 const schema = z.object({
   firstName: z.string(),
   lastName: z.string(),
+  username: z.string(),
   grade: z.string(),
   school: z.string(),
   dob: z.string(),
@@ -61,6 +62,7 @@ const SignUp = () => {
             {[
               { label: "First Name", name: "firstName" },
               { label: "Last Name", name: "lastName" },
+              { label: "Username", name: "username", type: "text" },
               { label: "Grade", name: "grade" },
               { label: "School", name: "school" },
               { label: "Date of Birth", name: "dob", type: "date" },
