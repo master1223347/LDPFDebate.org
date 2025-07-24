@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import SignUp from "./pages/SignUp";
 import Login from "./pages/LogIn";
 import Lobby from "./pages/Lobby";
+import PrivateRoute from "./components/PrivateRoute";
 // Inside <Routes>
 
 
@@ -28,8 +29,13 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/landing" element={<Landing />} />
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<Landing />} />
+          <Route path="/" element={<Landing />} />
+            <Route path="/home" element={
+              <PrivateRoute>
+                <Index />
+              </PrivateRoute>
+            } />
           <Route path="/vs-ai" element={<PlayerVsAI />} />
           <Route path="/vs-player" element={<PlayerVsPlayer />} />
           <Route path="/join" element={<JoinMatch />} />

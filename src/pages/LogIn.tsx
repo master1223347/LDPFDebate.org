@@ -32,9 +32,9 @@ const Login = () => {
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
       setLoggedIn(true);
-      navigate("/");
+      navigate("/home");
     } catch (err) {
-      setErrorMsg("Invalid credentials");
+      console.error("Login error:", err);
     }
   };
 
