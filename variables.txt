@@ -1,0 +1,72 @@
+# Variables and Values to Turn Dynamic
+
+Below is a list of variables, hardcoded values, and mock data in your codebase that should be made dynamic (i.e., fetched from a backend, database, or user input) instead of being static or placeholder values. This list is based on a scan of your codebase and may not be exhaustive, but covers the most prominent static data:
+
+---
+
+## src/components/HeroStatsPanel.tsx
+- `totalMatches = 127;`
+- `winRate = 73;`
+- `ldRating = 1847;`
+- `pfRating = 1632;`
+- `winStreak = 5;`
+- `lastEloChange = 12;`
+
+## src/components/LiveQueueStatus.tsx
+- `<p className="text-2xl font-bold text-foreground">42</p>` (Active Matches)
+- `<p className="text-2xl font-bold text-foreground">127</p>` (In Queue)
+- `<p className="text-2xl font-bold text-foreground">892</p>` (Online)
+
+## src/components/QuickActionButtons.tsx
+- `badge: "42 Live"` (Spectate)
+- `badge: "Top 100"` (Leaderboard)
+- `badge: "Code"` (Join Match)
+
+## src/pages/JoinMatch.tsx
+- `recentMatches = [...]` (array of hardcoded match data)
+
+## src/pages/Landing.tsx
+- Hero section: `DebateTogether.org` (title)
+- Testimonials: hardcoded testimonial text and names
+- Feature cards: hardcoded feature descriptions
+
+## src/pages/Learn.tsx
+- `flashcards = [...]` (array of hardcoded flashcards)
+- `drills = [...]` (array of hardcoded drills)
+- `shadowDebates = [...]` (array of hardcoded shadow debates)
+- Progress values in drills and skill cards
+
+## src/pages/Leaderboard.tsx
+- `leaderboardData = [...]` (array of hardcoded leaderboard entries)
+- `topPerformers = [...]` (array of hardcoded top performers)
+
+## src/pages/Profile.tsx
+- `ldRating = 1847;`
+- `pfRating = 1632;`
+- `winStreak = 5;`
+- `longestStreak = 12;`
+- `recentMatches = [...]` (array of hardcoded match history)
+
+## src/pages/Spectate.tsx
+- `liveMatches = [...]` (array of hardcoded live match data)
+- `chatMessages = [...]` (array of hardcoded chat messages)
+
+## src/pages/PlayerVsAI.tsx
+- `aiTypes = [...]` (array of AI judge types)
+- `timeRemaining = 360;` (default speech time)
+- `prepTime = 240;` (default prep time)
+
+## src/lib/firebase.ts
+- `firebaseConfig = {...}` (hardcoded Firebase credentials; should be in environment variables)
+
+## src/components/Navbar.tsx
+- `useState("JD")` (user initials default)
+- Any static/fallback user profile data (e.g., avatar, name)
+- Any static notification or menu items that should reflect backend/user state
+
+---
+
+**Note:**
+- All the above should be replaced with dynamic data from your backend, database, or user input as appropriate.
+- Some UI elements (like color tokens, Tailwind config, etc.) are meant to be static and are not included here.
+- This list is a starting point; further review may be needed as you add features.
