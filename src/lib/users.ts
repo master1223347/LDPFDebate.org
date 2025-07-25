@@ -4,6 +4,7 @@ import { collection, addDoc, Timestamp } from "firebase/firestore";
 export type UserProfile = {
   firstName: string;
   lastName: string;
+  username: string;
   grade: string;
   school: string;
   dob: Date;

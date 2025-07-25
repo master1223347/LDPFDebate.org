@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,20 +21,9 @@ import {
 
 const Profile = () => {
   const [selectedFormat, setSelectedFormat] = useState("LD");
+  const [profileData, setProfileData] = useState<any | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
 
-  const profileData = {
-    name: "John Debater",
-    username: "@johndebater",
-    school: "Harvard University",
-    joinDate: "September 2023",
-    ldRating: 1847,
-    pfRating: 1632,
-    totalMatches: 127,
-    wins: 93,
-    losses: 34,
-    winStreak: 5,
-    longestStreak: 12
-  };
 
   const recentMatches = [
     { id: 1, opponent: "Sarah Mitchell", result: "W", rating: "+12", format: "LD", date: "2 days ago" },
@@ -56,6 +48,43 @@ const Profile = () => {
     return "text-rating-bronze";
   };
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setUid(user.uid);
+        const docRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setProfileData(docSnap.data());
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (!profileData) {
+    return <div className="text-center text-muted-foreground mt-10">Loading your profile...</div>;
+  }
+
+  const fullName = `${profileData.firstName ?? ""} ${profileData.lastName ?? ""}`.trim();
+  const username = profileData.username ?? "N/A";
+  const initials = `${profileData.firstName?.[0] ?? ""}${profileData.lastName?.[0] ?? ""}`.toUpperCase();
+  const school = profileData.school ?? "Unknown School";
+  const joinDate = profileData.createdAt?.toDate().toLocaleDateString() ?? "Unknown";
+
+  // Derived match data
+  const wins = recentMatches.filter(m => m.result === "W").length;
+  const losses = recentMatches.filter(m => m.result === "L").length;
+  const totalMatches = wins + losses;
+  const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+
+  // Dummy ratings for now (you can later store these in Firestore)
+  const ldRating = 1847;
+  const pfRating = 1632;
+  const winStreak = 5;
+  const longestStreak = 12;
+
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -68,33 +97,33 @@ const Profile = () => {
               <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
                 <Avatar className="w-24 h-24 ring-4 ring-primary">
                   <AvatarImage src="/placeholder-avatar.jpg" alt="Profile" />
-                  <AvatarFallback className="text-2xl">JD</AvatarFallback>
+                  <AvatarFallback className="text-2xl"> {initials} </AvatarFallback>
                 </Avatar>
                 
                 <div className="flex-1">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
                     <div>
-                      <h1 className="text-3xl font-bold text-foreground">{profileData.name}</h1>
-                      <p className="text-muted-foreground">{profileData.username}</p>
+                      <h1 className="text-3xl font-bold text-foreground">{fullName}</h1>
+                      <p className="text-muted-foreground">{username}</p>
                     </div>
-                    <Button variant="outline">Edit Profile</Button>
+            
                   </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-foreground">{profileData.totalMatches}</p>
+                      <p className="text-2xl font-bold text-foreground">{totalMatches}</p>
                       <p className="text-sm text-muted-foreground">Total Matches</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-affirmative">{profileData.wins}</p>
+                      <p className="text-2xl font-bold text-affirmative">{wins}</p>
                       <p className="text-sm text-muted-foreground">Wins</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-negative">{profileData.losses}</p>
+                      <p className="text-2xl font-bold text-negative">{losses}</p>
                       <p className="text-sm text-muted-foreground">Losses</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-foreground">{Math.round((profileData.wins / profileData.totalMatches) * 100)}%</p>
+                      <p className="text-2xl font-bold text-foreground">{Math.round((wins / totalMatches) * 100)}%</p>
                       <p className="text-sm text-muted-foreground">Win Rate</p>
                     </div>
                   </div>
@@ -113,24 +142,24 @@ const Profile = () => {
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Lincoln-Douglas</span>
-                <span className={`text-2xl font-bold ${getRatingColor(profileData.ldRating)}`}>
+                <span className={`text-2xl font-bold ${getRatingColor(ldRating)}`}>
                   {profileData.ldRating}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Public Forum</span>
-                <span className={`text-2xl font-bold ${getRatingColor(profileData.pfRating)}`}>
+                <span className={`text-2xl font-bold ${getRatingColor(pfRating)}`}>
                   {profileData.pfRating}
                 </span>
               </div>
               <div className="pt-4 border-t border-border">
                 <div className="flex items-center gap-2 text-sm">
                   <School className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">{profileData.school}</span>
+                  <span className="text-muted-foreground">{school}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm mt-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Joined {profileData.joinDate}</span>
+                  <span className="text-muted-foreground">Joined {joinDate}</span>
                 </div>
               </div>
             </CardContent>
@@ -191,11 +220,11 @@ const Profile = () => {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Current Win Streak</span>
-                      <span className="text-2xl font-bold text-affirmative">{profileData.winStreak}</span>
+                      <span className="text-2xl font-bold text-affirmative">{winStreak}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Longest Win Streak</span>
-                      <span className="text-2xl font-bold text-foreground">{profileData.longestStreak}</span>
+                      <span className="text-2xl font-bold text-foreground">{longestStreak}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">This Month</span>
