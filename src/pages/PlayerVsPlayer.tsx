@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { db } from "@/lib/firebase";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { addDoc, collection, serverTimestamp, doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
 export default function PvP() {
   const [open, setOpen] = useState(false);
@@ -36,13 +37,26 @@ export default function PvP() {
 
     try {
       setCreating(true);
-
+      
+      const user = auth.currentUser;
+      
+      if (!user) {
+        toast.error("You must be logged in to create a match.");
+        return;
+      }
+      
+      const userDocRef = doc(db, "users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      const userData = userDocSnap.data();
       const matchRef = await addDoc(collection(db, "matches"), {
         format,
         timeControl,
         difficulty,
         status: "waiting",
-        createdAt: serverTimestamp()
+        hostId: user.uid,
+        hostName: `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim(),
+        hostUsername: userData?.username || "Unknown",
+        createdAt: serverTimestamp(),
       });
 
       toast.success("Match created!");
