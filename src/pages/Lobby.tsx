@@ -5,6 +5,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Navigate, useNavigate } from "react-router-dom" ;
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { JoinMatchModal } from "@/components/ui/JoinMatchModal";
+
+
+
 type Match = {
   id: string;
   format: "LD" | "PF";
@@ -18,6 +28,8 @@ type Match = {
 
 export default function Lobby() {
   const [matches, setMatches] = useState<Match[]>([]);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
   useEffect(() => {
     const q = query(collection(db, "matches"), where("status", "==", "waiting"));
@@ -62,18 +74,28 @@ export default function Lobby() {
                 <div className="text-sm text-muted-foreground">
                   Difficulty: <span className="capitalize">{match.difficulty}</span>
                 </div>
-                <Button className="w-full mt-2">Join Match</Button>
-              </CardContent>
+                <Button className="w-full mt-2"
+                 onClick={() => {
+                  setSelectedMatchId(match.id);
+                  setIsModalOpen(true);
+                 }}>
+                Join Match 
+                </Button>
 
+              </CardContent>
               {/* 🔹 Gray footer with host avatar + name */}
               <div className="px-4 py-2 bg-muted text-xs text-muted-foreground rounded-b-lg">
                 Host: <span className="text-foreground font-medium">{match.hostName || "Unknown"}</span>
               </div>
             </Card>
-
           ))}
         </div>
       )}
+      <JoinMatchModal
+        matchId={selectedMatchId ?? ""}
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </div>
   );
 }

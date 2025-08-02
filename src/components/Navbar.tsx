@@ -37,12 +37,12 @@ export const Navbar = () => {
 
   const handleLogout = async () => {
     await signOut(auth);
-    navigate("/landing");
+    navigate("/");
   };
 
   return (
     <nav className="flex justify-between items-center px-6 py-4 bg-card border-b border-border">
-      <Link to="/" className="flex items-center space-x-2" style={{ textDecoration: "none" }}>
+      <Link to="/home" className="flex items-center space-x-2" style={{ textDecoration: "none" }}>
         <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
           <span className="text-primary-foreground font-bold text-lg">D</span>
         </div>
@@ -71,10 +71,6 @@ export const Navbar = () => {
                 <span>Profile</span>
               </DropdownMenuItem>
             </Link>
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Logout</span>
