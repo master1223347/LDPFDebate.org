@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, User, LogOut, Settings } from "lucide-react";
+import { Bell, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,15 +10,17 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
 export const Navbar = () => {
   const navigate = useNavigate();
   const [initials, setInitials] = useState("JD");
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    // ✅ Fetch initials when user logs in
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const ref = doc(db, "users", user.uid);
         const snap = await getDoc(ref);
@@ -32,8 +34,25 @@ export const Navbar = () => {
       }
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
+
+  useEffect(() => {
+    // ✅ Real-time notification listener
+    if (!auth.currentUser) return;
+
+    const q = query(
+      collection(db, "notifications"),
+      where("hostId", "==", auth.currentUser.uid),
+      where("read", "==", false)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setUnreadCount(snapshot.size);
+    });
+
+    return () => unsubscribe();
+  }, [auth.currentUser]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -50,11 +69,20 @@ export const Navbar = () => {
       </Link>
 
       <div className="flex items-center space-x-4">
-        <Button variant="ghost" size="icon" className="relative">
+        {/* ✅ Bell with badge */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative"
+          onClick={() => navigate("/notifications")}
+        >
           <Bell className="h-5 w-5" />
-          <span className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full animate-pulse" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-3 w-3 bg-blue-500 rounded-full animate-pulse" />
+          )}
         </Button>
 
+        {/* ✅ Profile dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">

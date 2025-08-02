@@ -53,7 +53,7 @@ export default function PvP() {
         timeControl,
         difficulty,
         status: "waiting",
-        hostId: user.uid,
+        hostId: auth.currentUser?.uid || null,  // ✅ UID saved
         hostName: `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim(),
         hostUsername: userData?.username || "Unknown",
         createdAt: serverTimestamp(),

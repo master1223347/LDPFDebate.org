@@ -4,15 +4,10 @@ import { collection, query, where, onSnapshot, Timestamp } from "firebase/firest
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Navigate, useNavigate } from "react-router-dom" ;
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
+import { useNavigate } from "react-router-dom" ;
 import { JoinMatchModal } from "@/components/ui/JoinMatchModal";
-
+import { toast } from "sonner";
+import { auth } from "@/lib/firebase";
 
 
 type Match = {
@@ -20,6 +15,7 @@ type Match = {
   format: "LD" | "PF";
   timeControl: string;
   difficulty: string;
+  hostId: string;
   hostName?: string;
   hostUsername?: string;
   createdAt: Timestamp;
@@ -74,13 +70,20 @@ export default function Lobby() {
                 <div className="text-sm text-muted-foreground">
                   Difficulty: <span className="capitalize">{match.difficulty}</span>
                 </div>
-                <Button className="w-full mt-2"
-                 onClick={() => {
-                  setSelectedMatchId(match.id);
-                  setIsModalOpen(true);
-                 }}>
-                Join Match 
+                <Button
+                  className="w-full mt-2"
+                  onClick={() => {
+                    if (match.hostId === auth.currentUser?.uid) {
+                      toast.error("You can't join your own match silly!");
+                      return;
+                    }
+                    setSelectedMatchId(match.id);
+                    setIsModalOpen(true);
+                  }}
+                >
+                  Join Match
                 </Button>
+
 
               </CardContent>
               {/* 🔹 Gray footer with host avatar + name */}

@@ -7,6 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
+import { doc, collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { toast } from "sonner";
+import { query, where, getDocs, getDoc } from "firebase/firestore";
 
 export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; open: boolean; onClose: () => void }) {
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -14,6 +18,7 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
   const [contactInfo, setContactInfo] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [time, setTime] = useState("");
+  const [notes, setNotes] = useState("");
 
   const usTimezones = [
   { value: "PST", label: "Pacific (PST)" },
@@ -23,11 +28,73 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
   { value: "AKST", label: "Alaska (AKST)" },
   { value: "HST", label: "Hawaii (HST)" },
   ];
-  const handleSendProposal = () => {
-  if (!timezone || !selectedDate || !time || !contactMethod || !contactInfo) {
-    alert("Please fill out all required fields.");
-    return;
-  }};
+  const handleSendProposal = async () => {
+
+
+    if (!timezone || !selectedDate || !time || !contactMethod || !contactInfo) {
+        toast.error("Please fill out all required fields.");
+        return;
+    }
+
+    const [hours, minutes] = time.split(":").map(Number);
+    const finalDate = new Date(selectedDate);
+    finalDate.setHours(hours, minutes, 0, 0);
+
+    try {
+        
+        const matchSnap = await getDoc(doc(db, "matches", matchId));
+        const matchData = matchSnap.data();
+
+        if (!matchData) {
+        toast.error("Match not found.");
+        return;
+    }
+
+        
+        const proposalsRef = collection(doc(db, "matches", matchId), "proposals");
+        const q = query(
+            proposalsRef,
+            where("proposerId", "==", auth.currentUser?.uid || "")
+        );
+        const existing = await getDocs(q);
+
+        if (!existing.empty) {
+            toast.error("❌ You’ve already sent a proposal for this match.");
+            return;
+        }
+
+        
+        await addDoc(proposalsRef, {
+        timezone,
+        date: Timestamp.fromDate(finalDate),
+        contactMethod,
+        contactInfo,
+        notes,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        proposerId: auth.currentUser?.uid || null,
+        proposerName: auth.currentUser?.displayName || null,
+        proposerUsername: auth.currentUser?.email?.split("@")[0] || "user"
+        });
+
+        await addDoc(collection(db, "notifications"), {
+        matchId,
+        hostId: matchData.hostId,                 
+        senderId: auth.currentUser?.uid || null,  
+        senderName: auth.currentUser?.displayName || "Unknown",
+        message: "New match proposal received",
+        read: false,
+        createdAt: serverTimestamp(),
+        });
+
+        toast.success("✅ Proposal sent successfully!");
+        onClose();
+    } catch (error) {
+        console.error("Error sending proposal:", error);
+        alert("Failed to send proposal. Try again.");
+    }
+    };
+
 
 
   return (
@@ -116,7 +183,10 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
             )}
           <div>
             <Label>Additional Notes</Label>
-            <Textarea placeholder="Add any comments or requests..." />
+            <Textarea placeholder="Add any comments or requests..." 
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            />
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-4">
