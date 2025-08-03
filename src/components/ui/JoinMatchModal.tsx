@@ -12,6 +12,7 @@ import { auth, db } from "@/lib/firebase";
 import { toast } from "sonner";
 import { query, where, getDocs, getDoc } from "firebase/firestore";
 
+
 export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; open: boolean; onClose: () => void }) {
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [contactMethod, setContactMethod] = useState("email");
@@ -29,7 +30,12 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
   { value: "HST", label: "Hawaii (HST)" },
   ];
   const handleSendProposal = async () => {
-
+    
+    const user = auth.currentUser;
+    if (!user) {
+        toast.error("You must be logged in to send a proposal.");
+        return;
+    }
 
     if (!timezone || !selectedDate || !time || !contactMethod || !contactInfo) {
         toast.error("Please fill out all required fields.");
@@ -63,6 +69,8 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
             return;
         }
 
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const userData = userDoc.data();
         
         await addDoc(proposalsRef, {
         timezone,
@@ -73,8 +81,9 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
         status: "pending",
         createdAt: serverTimestamp(),
         proposerId: auth.currentUser?.uid || null,
-        proposerName: auth.currentUser?.displayName || null,
-        proposerUsername: auth.currentUser?.email?.split("@")[0] || "user"
+        proposerName: `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim() || "Unknown",
+        proposerUsername: userData?.username || auth.currentUser.email.split("@")[0],
+
         });
 
         await addDoc(collection(db, "notifications"), {
