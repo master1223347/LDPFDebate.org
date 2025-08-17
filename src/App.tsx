@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import PlayerVsAI from "./pages/PlayerVsAI";
 import PlayerVsPlayer from "./pages/PlayerVsPlayer";
+import Debate from "./pages/Debate";
+import MatchProposals from "./pages/MatchProposals";
 import JoinMatch from "./pages/JoinMatch";
 import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
@@ -39,6 +41,8 @@ const App = () => (
             } />
           <Route path="/vs-ai" element={<PlayerVsAI />} />
           <Route path="/vs-player" element={<PlayerVsPlayer />} />
+          <Route path="/debate/:matchId" element={<Debate />} />
+          <Route path="/match-proposals/:matchId" element={<MatchProposals />} />
           <Route path="/join" element={<JoinMatch />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/leaderboard" element={<Leaderboard />} />

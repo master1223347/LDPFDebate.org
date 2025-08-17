@@ -7,11 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
-import { doc, collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { doc, collection, addDoc, serverTimestamp, Timestamp, getDoc, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { toast } from "sonner";
-import { query, where, getDocs, getDoc } from "firebase/firestore";
-
 
 export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; open: boolean; onClose: () => void }) {
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -22,15 +20,15 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
   const [notes, setNotes] = useState("");
 
   const usTimezones = [
-  { value: "PST", label: "Pacific (PST)" },
-  { value: "MST", label: "Mountain (MST)" },
-  { value: "CST", label: "Central (CST)" },
-  { value: "EST", label: "Eastern (EST)" },
-  { value: "AKST", label: "Alaska (AKST)" },
-  { value: "HST", label: "Hawaii (HST)" },
+    { value: "PST", label: "Pacific (PST)" },
+    { value: "MST", label: "Mountain (MST)" },
+    { value: "CST", label: "Central (CST)" },
+    { value: "EST", label: "Eastern (EST)" },
+    { value: "AKST", label: "Alaska (AKST)" },
+    { value: "HST", label: "Hawaii (HST)" },
   ];
+
   const handleSendProposal = async () => {
-    
     const user = auth.currentUser;
     if (!user) {
         toast.error("You must be logged in to send a proposal.");
@@ -47,16 +45,15 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
     finalDate.setHours(hours, minutes, 0, 0);
 
     try {
-        
         const matchSnap = await getDoc(doc(db, "matches", matchId));
         const matchData = matchSnap.data();
 
         if (!matchData) {
-        toast.error("Match not found.");
-        return;
-    }
+            toast.error("Match not found.");
+            return;
+        }
 
-        
+        // Check if user already sent a proposal
         const proposalsRef = collection(doc(db, "matches", matchId), "proposals");
         const q = query(
             proposalsRef,
@@ -65,46 +62,45 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
         const existing = await getDocs(q);
 
         if (!existing.empty) {
-            toast.error("❌ You’ve already sent a proposal for this match.");
+            toast.error("❌ You've already sent a proposal for this match.");
             return;
         }
 
         const userDoc = await getDoc(doc(db, "users", user.uid));
         const userData = userDoc.data();
         
+        // Add the proposal
         await addDoc(proposalsRef, {
-        timezone,
-        date: Timestamp.fromDate(finalDate),
-        contactMethod,
-        contactInfo,
-        notes,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        proposerId: auth.currentUser?.uid || null,
-        proposerName: `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim() || "Unknown",
-        proposerUsername: userData?.username || auth.currentUser.email.split("@")[0],
-
+            timezone,
+            date: Timestamp.fromDate(finalDate),
+            contactMethod,
+            contactInfo,
+            notes,
+            status: "pending",
+            createdAt: serverTimestamp(),
+            proposerId: auth.currentUser?.uid || null,
+            proposerName: `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim() || "Unknown",
+            proposerUsername: userData?.username || auth.currentUser.email.split("@")[0],
         });
 
+        // Send notification to host
         await addDoc(collection(db, "notifications"), {
-        matchId,
-        hostId: matchData.hostId,                 
-        senderId: auth.currentUser?.uid || null,  
-        senderName: auth.currentUser?.displayName || "Unknown",
-        message: "New match proposal received",
-        read: false,
-        createdAt: serverTimestamp(),
+            matchId,
+            hostId: matchData.hostId,                 
+            senderId: auth.currentUser?.uid || null,  
+            senderName: auth.currentUser?.displayName || "Unknown",
+            message: "New match proposal received",
+            read: false,
+            createdAt: serverTimestamp(),
         });
 
         toast.success("✅ Proposal sent successfully!");
         onClose();
     } catch (error) {
         console.error("Error sending proposal:", error);
-        alert("Failed to send proposal. Try again.");
+        toast.error("Failed to send proposal. Try again.");
     }
-    };
-
-
+  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -131,7 +127,6 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
                 </SelectContent>
             </Select>
             </div>
-
 
           <div>
             <Label>Date</Label>

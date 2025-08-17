@@ -19,7 +19,11 @@ type Match = {
   hostName?: string;
   hostUsername?: string;
   createdAt: Timestamp;
-
+  status: string;
+  opponentId?: string;
+  opponentName?: string;
+  opponentUsername?: string;
+  googleMeetUrl?: string;
 };
 
 export default function Lobby() {
@@ -28,7 +32,11 @@ export default function Lobby() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
   useEffect(() => {
-    const q = query(collection(db, "matches"), where("status", "==", "waiting"));
+    // Listen to waiting, ready, and active matches
+    const q = query(
+      collection(db, "matches"), 
+      where("status", "in", ["waiting", "ready", "active"])
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map((doc) => ({
         id: doc.id,
@@ -52,48 +60,154 @@ export default function Lobby() {
           Back to Dashboard
         </Button>
       </div>
-      {matches.length === 0 ? (
-        <p className="text-muted-foreground">No matches currently waiting.
-         Start one from the PvP page!</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {matches.map((match) => (
-            <Card key={match.id} className="bg-gradient-hero border-border flex flex-col justify-between">
-              <CardContent className="p-4 space-y-2 flex-1">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-semibold text-foreground">{match.format} Match</h2>
-                  <Badge variant="secondary">{match.timeControl}</Badge>
-                </div>
-                  <div className="text-sm font-semibold text-gray-800">
-                  <span className="text-primary">{match.hostUsername}</span>
+      
+      {/* Active Debates Section */}
+      {matches.filter(m => m.status === "active").length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold text-foreground mb-4">Active Debates</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {matches.filter(m => m.status === "active").map((match) => (
+              <Card key={match.id} className="bg-gradient-hero border-border flex flex-col justify-between">
+                <CardContent className="p-4 space-y-2 flex-1">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-semibold text-foreground">{match.format} Debate</h2>
+                    <Badge variant="default">Active</Badge>
                   </div>
-                <div className="text-sm text-muted-foreground">
-                  Difficulty: <span className="capitalize">{match.difficulty}</span>
-                </div>
-                <Button
-                  className="w-full mt-2"
-                  onClick={() => {
-                    if (match.hostId === auth.currentUser?.uid) {
-                      toast.error("You can't join your own match silly!");
-                      return;
+                  <div className="text-sm font-semibold text-gray-800">
+                    <span className="text-primary">{match.hostUsername}</span> vs <span className="text-primary">{match.opponentUsername}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Format: {match.format} • Time: {match.timeControl}
+                  </div>
+                  <Button
+                    className="w-full mt-2"
+                    onClick={() => navigate(`/debate/${match.id}`)}
+                  >
+                    {match.hostId === auth.currentUser?.uid || match.opponentId === auth.currentUser?.uid 
+                      ? "Rejoin Debate" 
+                      : "Join Debate"
                     }
-                    setSelectedMatchId(match.id);
-                    setIsModalOpen(true);
-                  }}
-                >
-                  Join Match
-                </Button>
-
-
-              </CardContent>
-              {/* 🔹 Gray footer with host avatar + name */}
-              <div className="px-4 py-2 bg-muted text-xs text-muted-foreground rounded-b-lg">
-                Host: <span className="text-foreground font-medium">{match.hostName || "Unknown"}</span>
-              </div>
-            </Card>
-          ))}
+                  </Button>
+                </CardContent>
+                <div className="px-4 py-2 bg-muted text-xs text-muted-foreground rounded-b-lg">
+                  Debate in progress
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
+
+      
+
+      {/* Ready to Join Section */}
+      {matches.filter(m => m.status === "ready").length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold text-foreground mb-4">Ready to Join</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {matches.filter(m => m.status === "ready").map((match) => (
+              <Card key={match.id} className="bg-gradient-hero border-border flex flex-col justify-between">
+                <CardContent className="p-4 space-y-2 flex-1">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-semibold text-foreground">{match.format} Match</h2>
+                    <Badge variant="default">Ready</Badge>
+                  </div>
+                  <div className="text-sm font-semibold text-gray-800">
+                    <span className="text-primary">{match.hostUsername}</span> vs <span className="text-primary">{match.opponentUsername}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Format: {match.format} • Time: {match.timeControl}
+                  </div>
+                  <Button
+                    className="w-full mt-2"
+                    onClick={() => navigate(`/debate/${match.id}`)}
+                  >
+                    Join Debate
+                  </Button>
+                </CardContent>
+                <div className="px-4 py-2 bg-muted text-xs text-muted-foreground rounded-b-lg">
+                  Both players ready - click to join
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pending Proposals Section - Only show for hosts */}
+      {matches.filter(m => m.status === "waiting" && m.hostId === auth.currentUser?.uid).length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold text-foreground mb-4">Your Matches - Pending Proposals</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {matches.filter(m => m.status === "waiting" && m.hostId === auth.currentUser?.uid).map((match) => (
+              <Card key={match.id} className="bg-gradient-hero border-border flex flex-col justify-between">
+                <CardContent className="p-4 space-y-2 flex-1">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-semibold text-foreground">{match.format} Match</h2>
+                    <Badge variant="secondary">{match.timeControl}</Badge>
+                  </div>
+                  <div className="text-sm font-semibold text-gray-800">
+                    <span className="text-primary">Host: {match.hostUsername}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Difficulty: <span className="capitalize">{match.difficulty}</span>
+                  </div>
+                  <Button
+                    className="w-full mt-2"
+                    onClick={() => navigate(`/match-proposals/${match.id}`)}
+                  >
+                    View Proposals
+                  </Button>
+                </CardContent>
+                <div className="px-4 py-2 bg-muted text-xs text-muted-foreground rounded-b-lg">
+                  Waiting for proposals
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Waiting Matches Section */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold text-foreground mb-4">Available Matches to Join</h2>
+        {matches.filter(m => m.status === "waiting" && m.hostId !== auth.currentUser?.uid).length === 0 ? (
+          <p className="text-muted-foreground">No matches currently available to join. Start one from the PvP page!</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {matches.filter(m => m.status === "waiting" && m.hostId !== auth.currentUser?.uid).map((match) => (
+              <Card key={match.id} className="bg-gradient-hero border-border flex flex-col justify-between">
+                <CardContent className="p-4 space-y-2 flex-1">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-semibold text-foreground">{match.format} Match</h2>
+                    <Badge variant="secondary">{match.timeControl}</Badge>
+                  </div>
+                  <div className="text-sm font-semibold text-gray-800">
+                    <span className="text-primary">{match.hostUsername}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Difficulty: <span className="capitalize">{match.difficulty}</span>
+                  </div>
+                  <Button
+                    className="w-full mt-2"
+                    onClick={() => {
+                      setSelectedMatchId(match.id);
+                      setIsModalOpen(true);
+                    }}
+                  >
+                    Propose Time
+                  </Button>
+                </CardContent>
+                {/* 🔹 Gray footer with host avatar + name */}
+                <div className="px-4 py-2 bg-muted text-xs text-muted-foreground rounded-b-lg">
+                  Host: <span className="text-foreground font-medium">{match.hostName || "Unknown"}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+      
       <JoinMatchModal
         matchId={selectedMatchId ?? ""}
         open={isModalOpen}
