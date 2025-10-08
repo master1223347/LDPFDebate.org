@@ -6,8 +6,8 @@ export const CurrentTopicBanner = () => {
   const [selectedFormat, setSelectedFormat] = useState<"LD" | "PF">("LD");
   
   const topics = {
-    LD: "In the United States, the federal government should provide universal healthcare to its citizens.",
-    PF: "The benefits of artificial intelligence outweigh the harms."
+    LD: "In the United States criminal justice system, plea bargaining is just.",
+    PF: "The United Kingdom should rejoin the European Union."
   };
 
   return (
@@ -16,9 +16,6 @@ export const CurrentTopicBanner = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-3">
-              <Badge variant="secondary" className="animate-live-dot">
-                LIVE
-              </Badge>
               <div className="flex gap-2">
                 <Button 
                   variant={selectedFormat === "LD" ? "default" : "outline"}
