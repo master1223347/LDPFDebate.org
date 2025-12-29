@@ -6,7 +6,6 @@ import {
   Timestamp,
   DocumentData,
 } from "firebase/firestore";
-// ...existing code...
 // Adjust this import to match your firebase.ts export (e.g. export const db = getFirestore(app))
 import { db } from "./firebase";
 
