@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
-import { doc, collection, addDoc, serverTimestamp, Timestamp, getDoc, query, where, getDocs } from "firebase/firestore";
+import { doc, collection, addDoc, serverTimestamp, Timestamp, getDoc, query, where, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { toast } from "sonner";
 
@@ -62,7 +62,36 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
         const existing = await getDocs(q);
 
         if (!existing.empty) {
-            toast.error("❌ You've already sent a proposal for this match.");
+            // Allow reproposing - update existing proposal
+            const existingProposal = existing.docs[0];
+            const existingData = existingProposal.data();
+            
+            // Add to history if it exists
+            const history = existingData.proposalHistory || [];
+            if (existingData.date) {
+                history.push({
+                    timezone: existingData.timezone,
+                    date: existingData.date,
+                    notes: existingData.notes,
+                    proposedBy: "proposer" as const,
+                    proposedAt: existingData.createdAt || serverTimestamp(),
+                });
+            }
+
+            // Update the proposal
+            await updateDoc(doc(db, "matches", matchId, "proposals", existingProposal.id), {
+                timezone,
+                date: Timestamp.fromDate(finalDate),
+                contactMethod,
+                contactInfo,
+                notes,
+                status: "pending", // Reset to pending when reproposing
+                proposalHistory: history,
+                lastUpdated: serverTimestamp(),
+            });
+
+            toast.success("Proposal updated! The host will be notified of your new time.");
+            onClose();
             return;
         }
 
@@ -94,7 +123,7 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
             createdAt: serverTimestamp(),
         });
 
-        toast.success("✅ Proposal sent successfully!");
+        toast.success("Proposal sent successfully!");
         onClose();
     } catch (error) {
         console.error("Error sending proposal:", error);

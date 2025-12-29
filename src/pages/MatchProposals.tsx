@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { db, auth } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, addDoc, Timestamp } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Calendar, Clock, User, MessageSquare } from "lucide-react";
+import { Calendar, Clock, User, MessageSquare, RefreshCw, Edit } from "lucide-react";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Proposal = {
   id: string;
@@ -15,11 +21,25 @@ type Proposal = {
   contactMethod: string;
   contactInfo: string;
   notes: string;
-  status: "pending" | "accepted" | "rejected";
+  status: "pending" | "accepted" | "rejected" | "countered";
   createdAt: any;
   proposerId: string;
   proposerName: string;
   proposerUsername: string;
+  counterProposal?: {
+    timezone: string;
+    date: any;
+    notes?: string;
+    proposedBy: "host" | "proposer";
+    proposedAt: any;
+  };
+  proposalHistory?: Array<{
+    timezone: string;
+    date: any;
+    notes?: string;
+    proposedBy: "host" | "proposer";
+    proposedAt: any;
+  }>;
 };
 
 type Match = {
@@ -40,6 +60,12 @@ export default function MatchProposals() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
+  const [counterProposalOpen, setCounterProposalOpen] = useState(false);
+  const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
+  const [counterTimezone, setCounterTimezone] = useState("");
+  const [counterDate, setCounterDate] = useState<Date | undefined>();
+  const [counterTime, setCounterTime] = useState("");
+  const [counterNotes, setCounterNotes] = useState("");
 
   useEffect(() => {
     if (!matchId) return;
@@ -82,6 +108,14 @@ export default function MatchProposals() {
     if (!matchId || !match) return;
 
     try {
+      // If accepting a counter-proposal, use the counter-proposal's time
+      const finalProposal = proposal.counterProposal ? {
+        ...proposal,
+        timezone: proposal.counterProposal.timezone,
+        date: proposal.counterProposal.date,
+        notes: proposal.counterProposal.notes || proposal.notes,
+      } : proposal;
+
       // Update the proposal status
       await updateDoc(doc(db, "matches", matchId, "proposals", proposal.id), {
         status: "accepted"
@@ -94,7 +128,9 @@ export default function MatchProposals() {
         opponentUsername: proposal.proposerUsername,
         status: "ready",
         acceptedProposalId: proposal.id,
-        acceptedAt: serverTimestamp()
+        acceptedAt: serverTimestamp(),
+        scheduledTime: finalProposal.date,
+        scheduledTimezone: finalProposal.timezone,
       });
 
       // Reject all other proposals
@@ -105,7 +141,7 @@ export default function MatchProposals() {
         });
       }
 
-      toast.success("✅ Proposal accepted! The match is now ready. Both players can join from the lobby.");
+      toast.success("Proposal accepted! The match is now ready. Both players can join from the lobby.");
       navigate("/lobby");
     } catch (error) {
       console.error("Error accepting proposal:", error);
@@ -128,6 +164,82 @@ export default function MatchProposals() {
     }
   };
 
+  const handleCounterProposal = async () => {
+    if (!matchId || !selectedProposal || !counterTimezone || !counterDate || !counterTime) {
+      toast.error("Please fill out all required fields.");
+      return;
+    }
+
+    try {
+      const [hours, minutes] = counterTime.split(":").map(Number);
+      const finalDate = new Date(counterDate);
+      finalDate.setHours(hours, minutes, 0, 0);
+
+      const proposalRef = doc(db, "matches", matchId, "proposals", selectedProposal.id);
+      const proposalSnap = await getDoc(proposalRef);
+      const currentData = proposalSnap.data() as Proposal;
+      
+      const history = currentData.proposalHistory || [];
+      if (currentData.date) {
+        history.push({
+          timezone: currentData.timezone,
+          date: currentData.date,
+          notes: currentData.notes,
+          proposedBy: "proposer" as const,
+          proposedAt: currentData.createdAt || serverTimestamp(),
+        });
+      }
+
+      await updateDoc(proposalRef, {
+        status: "countered",
+        counterProposal: {
+          timezone: counterTimezone,
+          date: Timestamp.fromDate(finalDate),
+          notes: counterNotes,
+          proposedBy: "host" as const,
+          proposedAt: serverTimestamp(),
+        },
+        proposalHistory: history,
+      });
+
+      // Send notification to proposer
+      await addDoc(collection(db, "notifications"), {
+        matchId,
+        hostId: selectedProposal.proposerId,
+        senderId: auth.currentUser?.uid || null,
+        senderName: auth.currentUser?.displayName || "Host",
+        message: "Host has counter-proposed a time for your match",
+        read: false,
+        createdAt: serverTimestamp(),
+        type: "counter_proposal",
+        proposalId: selectedProposal.id,
+      });
+
+      toast.success("Counter-proposal sent! The proposer will be notified.");
+      setCounterProposalOpen(false);
+      setSelectedProposal(null);
+      setCounterTimezone("");
+      setCounterDate(undefined);
+      setCounterTime("");
+      setCounterNotes("");
+    } catch (error) {
+      console.error("Error sending counter-proposal:", error);
+      toast.error("Failed to send counter-proposal");
+    }
+  };
+
+  const openCounterProposalDialog = (proposal: Proposal) => {
+    setSelectedProposal(proposal);
+    setCounterTimezone(proposal.timezone);
+    if (proposal.date) {
+      const date = proposal.date.toDate ? proposal.date.toDate() : new Date(proposal.date);
+      setCounterDate(date);
+      setCounterTime(date.toTimeString().slice(0, 5));
+    }
+    setCounterNotes(proposal.notes || "");
+    setCounterProposalOpen(true);
+  };
+
   const formatDate = (timestamp: any) => {
     if (!timestamp) return "N/A";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -136,10 +248,10 @@ export default function MatchProposals() {
 
   const getContactMethodIcon = (method: string) => {
     switch (method) {
-      case "email": return "📧";
-      case "discord": return "🎮";
-      case "phone": return "📞";
-      default: return "💬";
+      case "email": return "Email";
+      case "discord": return "Discord";
+      case "phone": return "Phone";
+      default: return "Contact";
     }
   };
 
@@ -276,26 +388,66 @@ export default function MatchProposals() {
                     )}
 
                     {proposal.status === "pending" && (
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={() => handleAcceptProposal(proposal)}
+                            className="flex-1"
+                          >
+                            Accept Proposal
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleRejectProposal(proposal)}
+                            className="flex-1"
+                          >
+                            Reject
+                          </Button>
+                        </div>
                         <Button 
-                          onClick={() => handleAcceptProposal(proposal)}
-                          className="flex-1"
+                          variant="secondary" 
+                          onClick={() => openCounterProposalDialog(proposal)}
+                          className="w-full"
                         >
-                          Accept Proposal
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Counter-Propose Time
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          onClick={() => handleRejectProposal(proposal)}
-                          className="flex-1"
-                        >
-                          Reject
-                        </Button>
+                      </div>
+                    )}
+
+                    {proposal.status === "countered" && proposal.counterProposal && (
+                      <div className="space-y-3">
+                        <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                          <p className="text-sm font-semibold text-primary mb-2">Host's Counter-Proposal</p>
+                          <div className="space-y-1 text-sm">
+                            <p><span className="text-muted-foreground">Date:</span> {formatDate(proposal.counterProposal.date)}</p>
+                            <p><span className="text-muted-foreground">Timezone:</span> {proposal.counterProposal.timezone}</p>
+                            {proposal.counterProposal.notes && (
+                              <p><span className="text-muted-foreground">Notes:</span> {proposal.counterProposal.notes}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={() => handleAcceptProposal(proposal)}
+                            className="flex-1"
+                          >
+                            Accept Counter-Proposal
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleRejectProposal(proposal)}
+                            className="flex-1"
+                          >
+                            Reject
+                          </Button>
+                        </div>
                       </div>
                     )}
 
                     {proposal.status === "accepted" && (
                       <div className="text-center p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <p className="text-green-800 font-medium">✅ Proposal Accepted</p>
+                        <p className="text-green-800 font-medium">Proposal Accepted</p>
                         <p className="text-sm text-green-600">
                           This player will join your match
                         </p>
@@ -304,7 +456,7 @@ export default function MatchProposals() {
 
                     {proposal.status === "rejected" && (
                       <div className="text-center p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-red-800 font-medium">❌ Proposal Rejected</p>
+                        <p className="text-red-800 font-medium">Proposal Rejected</p>
                       </div>
                     )}
                   </CardContent>
@@ -314,6 +466,72 @@ export default function MatchProposals() {
           )}
         </div>
       </div>
+
+      {/* Counter-Proposal Dialog */}
+      <Dialog open={counterProposalOpen} onOpenChange={setCounterProposalOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Counter-Propose Time</DialogTitle>
+            <DialogDescription>
+              Suggest a different time that works better for you. The proposer will be notified.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label>Timezone</Label>
+              <Select value={counterTimezone} onValueChange={setCounterTimezone}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PST">Pacific (PST)</SelectItem>
+                  <SelectItem value="MST">Mountain (MST)</SelectItem>
+                  <SelectItem value="CST">Central (CST)</SelectItem>
+                  <SelectItem value="EST">Eastern (EST)</SelectItem>
+                  <SelectItem value="AKST">Alaska (AKST)</SelectItem>
+                  <SelectItem value="HST">Hawaii (HST)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Date</Label>
+              <CalendarComponent
+                mode="single"
+                selected={counterDate}
+                onSelect={setCounterDate}
+                className="rounded-md border"
+              />
+            </div>
+
+            <div>
+              <Label>Preferred Time</Label>
+              <Input 
+                type="time" 
+                value={counterTime} 
+                onChange={(e) => setCounterTime(e.target.value)} 
+              />
+            </div>
+
+            <div>
+              <Label>Additional Notes (Optional)</Label>
+              <Textarea 
+                placeholder="Add any comments or requests..." 
+                value={counterNotes}
+                onChange={(e) => setCounterNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setCounterProposalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCounterProposal}>
+              Send Counter-Proposal
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

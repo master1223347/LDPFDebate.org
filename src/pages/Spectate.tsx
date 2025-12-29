@@ -73,13 +73,13 @@ const Spectate = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-6 flex items-center gap-3">
             <Eye className="h-8 w-8 text-primary" />
-            Live Debates
+            Debates
           </h1>
           
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center gap-4">
-              <Badge variant="secondary" className="animate-live-dot">
-                {liveMatches.length} LIVE
+              <Badge variant="secondary">
+                {liveMatches.length} Active
               </Badge>
               <p className="text-muted-foreground">
                 {liveMatches.reduce((total, match) => total + match.viewers, 0)} total viewers
@@ -164,7 +164,7 @@ const Spectate = () => {
                       </div>
                     </div>
                     
-                    {/* Live Vote Bar */}
+                    {/* Vote Bar */}
                     <div className="space-y-2">
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Audience Vote</span>
@@ -231,12 +231,12 @@ const Spectate = () => {
               </CardContent>
             </Card>
 
-            {/* Live Chat */}
+            {/* Chat */}
             <Card className="bg-gradient-hero border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MessageCircle className="h-5 w-5 text-primary" />
-                  Live Chat
+                  Chat
                 </CardTitle>
               </CardHeader>
               <CardContent>

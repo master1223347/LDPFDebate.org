@@ -17,8 +17,8 @@ const JoinMatch = () => {
 
   const recentMatches = [
     { code: "X7L4KZ", format: "LD", players: "John D. vs Sarah C.", status: "Waiting", viewers: 12 },
-    { code: "M2K9PL", format: "PF", players: "Mike R. vs Lisa P.", status: "Live", viewers: 23 },
-    { code: "B5N8QW", format: "LD", players: "Alex K. vs Emma G.", status: "Live", viewers: 45 }
+    { code: "M2K9PL", format: "PF", players: "Mike R. vs Lisa P.", status: "Active", viewers: 23 },
+    { code: "B5N8QW", format: "LD", players: "Alex K. vs Emma G.", status: "Active", viewers: 45 }
   ];
 
   return (
@@ -97,7 +97,7 @@ const JoinMatch = () => {
                   </div>
                   
                   <div className="flex gap-2">
-                    {match.status === "Live" ? (
+                    {match.status === "Active" ? (
                       <Button variant="outline" size="sm">
                         <Eye className="h-4 w-4 mr-2" />
                         Spectate

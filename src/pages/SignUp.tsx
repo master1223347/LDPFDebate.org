@@ -129,6 +129,9 @@ const SignUp = () => {
         ...userData,
     dob: Timestamp.fromDate(new Date(data.dob)),
     createdAt: Timestamp.now(),
+    rating: 800,
+    gamesPlayed: 0,
+    lastSeen: Timestamp.now(),
   });
 
       toast.success("Account created successfully!");

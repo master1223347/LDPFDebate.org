@@ -28,7 +28,7 @@ export const QuickActionButtons = () => {
       title: "PvP",
       description: "Challenge real opponents",
       variant: "pvp" as const,
-      badge: "Live",
+      badge: "Multiplayer",
       route: "/vs-player"
     },
     {
@@ -42,9 +42,9 @@ export const QuickActionButtons = () => {
     {
       icon: Eye,
       title: "Spectate",
-      description: "Watch live debates",
+      description: "Watch debates",
       variant: "spectate" as const,
-      badge: "42 Live",
+      badge: "42",
       route: "/spectate"
     },
     {

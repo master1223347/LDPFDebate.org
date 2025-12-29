@@ -131,7 +131,7 @@ const config = {
   },
   plugins: [
     require("tailwindcss-animate"),
-    scrollbar, // ✅ Added scrollbar here
+    scrollbar, // Added scrollbar here
   ],
   variants: {
     scrollbar: ["rounded"], 

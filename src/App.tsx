@@ -18,6 +18,7 @@ import NotFound from "./pages/NotFound";
 import SignUp from "./pages/SignUp";
 import Login from "./pages/LogIn";
 import Lobby from "./pages/Lobby";
+import LiveMatch from "./pages/LiveMatch";
 import PrivateRoute from "./components/PrivateRoute";
 import NotificationsPage from "./pages/Notifications";
 import CurrentlyBuildingPage from "./pages/CurrentlyBuildingPage";
@@ -52,6 +53,7 @@ const App = () => (
           <Route path="/signup" element={<SignUp />} />
           <Route path="/login" element={<Login />} />
           <Route path="/lobby" element={<Lobby />} />
+          <Route path="/match/:matchId" element={<LiveMatch />} />
           <Route path="/building" element={<CurrentlyBuildingPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

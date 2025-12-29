@@ -25,11 +25,11 @@ const PlayerVsAI = () => {
   const [prepTime, setPrepTime] = useState(240); // 4 minutes prep
 
   const aiTypes = [
-    { value: "utilitarian", label: "Utilitarian", icon: "⚖️" },
-    { value: "kantian", label: "Kantian", icon: "📜" },
-    { value: "policy", label: "Policy Bro", icon: "📊" },
-    { value: "lay", label: "Lay Judge", icon: "👥" },
-    { value: "speed", label: "Speed Caster", icon: "⚡" }
+    { value: "utilitarian", label: "Utilitarian", icon: "" },
+    { value: "kantian", label: "Kantian", icon: "" },
+    { value: "policy", label: "Policy Bro", icon: "" },
+    { value: "lay", label: "Lay Judge", icon: "" },
+    { value: "speed", label: "Speed Caster", icon: "" }
   ];
 
   const formatTime = (seconds: number) => {
@@ -104,7 +104,7 @@ const PlayerVsAI = () => {
                   <SelectContent>
                     {aiTypes.map((type) => (
                       <SelectItem key={type.value} value={type.value}>
-                        {type.icon} {type.label}
+                        {type.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -12,6 +12,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { setupPresenceTracking } from "@/lib/presence";
 
 export const Navbar = () => {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ export const Navbar = () => {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    // ✅ Fetch initials when user logs in
+    // Fetch initials when user logs in
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const ref = doc(db, "users", user.uid);
@@ -38,7 +39,7 @@ export const Navbar = () => {
   }, []);
 
   useEffect(() => {
-    // ✅ Real-time notification listener
+    // Real-time notification listener
     if (!auth.currentUser) return;
 
     const q = query(
@@ -66,7 +67,7 @@ export const Navbar = () => {
           <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
             <span className="text-primary-foreground font-bold text-lg">D</span>
           </div>
-          <h1 className="text-xl font-bold text-foreground">Debate.com</h1>
+          <h1 className="text-xl font-bold text-foreground">DebateTogether</h1>
         </Link>
 
         <Link to="/building" className="text-sm text-foreground/70 hover:text-foreground">
@@ -75,7 +76,7 @@ export const Navbar = () => {
       </div>
 
       <div className="flex items-center space-x-4">
-        {/* ✅ Bell with badge */}
+        {/* Bell with badge */}
         <Button
           variant="ghost"
           size="icon"
@@ -88,7 +89,7 @@ export const Navbar = () => {
           )}
         </Button>
 
-        {/* ✅ Profile dropdown */}
+        {/* Profile dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">

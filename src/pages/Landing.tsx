@@ -32,11 +32,6 @@ export default function Landing() {
         </div>
 
         <div className="relative z-10 flex flex-col items-center justify-center px-4 max-w-5xl mx-auto">
-          <div className="mb-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-sm">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-sm font-medium text-primary">Live debates happening now</span>
-          </div>
-          
           <h1 className="text-6xl md:text-8xl font-extrabold text-foreground mb-6 leading-tight">
             <span className="bg-gradient-to-r from-primary via-primary/80 to-accent bg-clip-text text-transparent">
               DebateTogether
@@ -48,7 +43,7 @@ export default function Landing() {
           </p>
           
           <p className="text-base md:text-lg text-muted-foreground/80 mb-10 max-w-xl">
-            Join live debates, practice with AI, track your progress, and be part of a thriving community of debaters
+            Join debates, practice with AI, track your progress, and be part of a thriving community of debaters
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
@@ -95,7 +90,7 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                   <Users className="w-6 h-6 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold text-foreground mb-2">Live Debates</h3>
+                <h3 className="text-xl font-bold text-foreground mb-2">Debates</h3>
                 <p className="text-muted-foreground">
                   Join real-time debates with players worldwide. Practice LD and PF formats with structured timing and phases.
                 </p>
@@ -104,8 +99,8 @@ export default function Landing() {
 
             <Card className="border-2 hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:scale-105 bg-card/80 backdrop-blur-sm">
               <CardContent className="p-6">
-                <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
-                  <Zap className="w-6 h-6 text-accent" />
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                  <Zap className="w-6 h-6 text-primary" />
                 </div>
                 <h3 className="text-xl font-bold text-foreground mb-2">AI Practice</h3>
                 <p className="text-muted-foreground">
@@ -128,8 +123,8 @@ export default function Landing() {
 
             <Card className="border-2 hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:scale-105 bg-card/80 backdrop-blur-sm">
               <CardContent className="p-6">
-                <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
-                  <Trophy className="w-6 h-6 text-accent" />
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                  <Trophy className="w-6 h-6 text-primary" />
                 </div>
                 <h3 className="text-xl font-bold text-foreground mb-2">Leaderboards</h3>
                 <p className="text-muted-foreground">
@@ -152,8 +147,8 @@ export default function Landing() {
 
             <Card className="border-2 hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:scale-105 bg-card/80 backdrop-blur-sm">
               <CardContent className="p-6">
-                <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
-                  <MessageSquare className="w-6 h-6 text-accent" />
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                  <MessageSquare className="w-6 h-6 text-primary" />
                 </div>
                 <h3 className="text-xl font-bold text-foreground mb-2">Community</h3>
                 <p className="text-muted-foreground">
@@ -308,7 +303,7 @@ export default function Landing() {
             <div>
               <h4 className="font-semibold text-foreground mb-4">Features</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>Live Debates</li>
+                <li>Debates</li>
                 <li>AI Practice</li>
                 <li>Skill Tracking</li>
                 <li>Community</li>

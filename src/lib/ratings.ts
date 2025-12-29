@@ -66,8 +66,8 @@ export async function updateRatingsTransaction({
     const dataA = snapA.data() as DocumentData;
     const dataB = snapB.data() as DocumentData;
 
-    const ratingA: number = dataA.rating ?? 1200;
-    const ratingB: number = dataB.rating ?? 1200;
+    const ratingA: number = dataA.rating ?? 800;
+    const ratingB: number = dataB.rating ?? 800;
     const gamesA: number = dataA.gamesPlayed ?? 0;
     const gamesB: number = dataB.gamesPlayed ?? 0;
 
