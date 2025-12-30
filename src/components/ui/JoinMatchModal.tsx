@@ -11,7 +11,7 @@ import { doc, collection, addDoc, serverTimestamp, Timestamp, getDoc, query, whe
 import { auth, db } from "@/lib/firebase";
 import { toast } from "sonner";
 
-export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; open: boolean; onClose: () => void }) {
+export function JoinMatchModal({ debateId, open, onClose }: { debateId: string; open: boolean; onClose: () => void }) {
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [contactMethod, setContactMethod] = useState("email");
   const [contactInfo, setContactInfo] = useState("");
@@ -45,60 +45,19 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
     finalDate.setHours(hours, minutes, 0, 0);
 
     try {
-        const matchSnap = await getDoc(doc(db, "matches", matchId));
-        const matchData = matchSnap.data();
+        const debateSnap = await getDoc(doc(db, "debates", debateId));
+        const debateData = debateSnap.data();
 
-        if (!matchData) {
-            toast.error("Match not found.");
+        if (!debateData) {
+            toast.error("Debate not found.");
             return;
         }
 
-        // Check if user already sent a proposal
-        const proposalsRef = collection(doc(db, "matches", matchId), "proposals");
-        const q = query(
-            proposalsRef,
-            where("proposerId", "==", auth.currentUser?.uid || "")
-        );
-        const existing = await getDocs(q);
-
-        if (!existing.empty) {
-            // Allow reproposing - update existing proposal
-            const existingProposal = existing.docs[0];
-            const existingData = existingProposal.data();
-            
-            // Add to history if it exists
-            const history = existingData.proposalHistory || [];
-            if (existingData.date) {
-                history.push({
-                    timezone: existingData.timezone,
-                    date: existingData.date,
-                    notes: existingData.notes,
-                    proposedBy: "proposer" as const,
-                    proposedAt: existingData.createdAt || serverTimestamp(),
-                });
-            }
-
-            // Update the proposal
-            await updateDoc(doc(db, "matches", matchId, "proposals", existingProposal.id), {
-                timezone,
-                date: Timestamp.fromDate(finalDate),
-                contactMethod,
-                contactInfo,
-                notes,
-                status: "pending", // Reset to pending when reproposing
-                proposalHistory: history,
-                lastUpdated: serverTimestamp(),
-            });
-
-            toast.success("Proposal updated! The host will be notified of your new time.");
-            onClose();
-            return;
-        }
-
+        const proposalsRef = collection(doc(db, "debates", debateId), "proposals");
         const userDoc = await getDoc(doc(db, "users", user.uid));
         const userData = userDoc.data();
         
-        // Add the proposal
+        // Create a new proposal (users can now send multiple proposals)
         await addDoc(proposalsRef, {
             timezone,
             date: Timestamp.fromDate(finalDate),
@@ -114,11 +73,11 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
 
         // Send notification to host
         await addDoc(collection(db, "notifications"), {
-            matchId,
-            hostId: matchData.hostId,                 
+            debateId,
+            hostId: debateData.hostId,                 
             senderId: auth.currentUser?.uid || null,  
             senderName: auth.currentUser?.displayName || "Unknown",
-            message: "New match proposal received",
+            message: "New debate proposal received",
             read: false,
             createdAt: serverTimestamp(),
         });
@@ -135,7 +94,7 @@ export function JoinMatchModal({ matchId, open, onClose }: { matchId: string; op
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-xl max-h-[90vh] my-6 overflow-y-auto scrollbar-thin scrollbar-thumb-muted-foreground scrollbar-track-transparent rounded-lg backdrop-blur-md bg-background/80 border border-white/10">
         <DialogHeader>
-          <DialogTitle>Propose Match Time</DialogTitle>
+          <DialogTitle>Propose Debate Time</DialogTitle>
           <DialogDescription>
             Send your availability and details to the host. They can approve or suggest changes.
           </DialogDescription>

@@ -8,12 +8,15 @@ export interface GoogleMeetDetails {
 }
 
 /**
- * Generates a realistic Google Meet ID
- * Google Meet IDs are typically 3-4 character lowercase alphabetic codes
+ * Generates a unique meeting identifier
+ * Since we can't create real Google Meet meetings without API access,
+ * we generate a unique ID that can be used to create a meeting link
+ * Users will need to create the actual meeting through Google Meet
  */
 export const generateMeetId = (): string => {
+  // Generate a longer, more unique ID (10-12 characters)
   const chars = 'abcdefghijklmnopqrstuvwxyz';
-  const length = Math.random() > 0.5 ? 3 : 4; // 50% chance of 3 or 4 chars
+  const length = 10 + Math.floor(Math.random() * 3); // 10-12 chars
   let result = '';
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));

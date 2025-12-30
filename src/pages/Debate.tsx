@@ -5,18 +5,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, functions, httpsCallable } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
-import { Play, Pause, RotateCcw, Mic, MicOff, Video, VideoOff, ChevronDown, ChevronUp, Copy, ExternalLink } from "lucide-react";
+import { Play, Pause, RotateCcw, Mic, MicOff, Video, VideoOff, ChevronDown, ChevronUp, Copy, ExternalLink, Link2, Check } from "lucide-react";
 import { createGoogleMeet as createMeetUtil, formatMeetId, generateMeetingInstructions } from "@/lib/googleMeet";
 import { createAdvancedMeetUrl, generateMeetingInvitation, createQRCodeUrl, formatMeetingId } from "@/lib/googleMeetConfig";
 
 type DebatePhase = "prep" | "speech1" | "cross1" | "speech2" | "cross2" | "rebuttal1" | "rebuttal2" | "summary1" | "summary2";
 
 interface DebateSettings {
-  format: "LD" | "PF";
-  timeControl: string;
+  format: "LD" | "PF" | "AOTB";
+  timeControl?: string;
   prepTime: number;
   speechTime: number;
   crossTime: number;
@@ -34,7 +36,7 @@ interface DebateState {
 }
 
 export default function Debate() {
-  const { matchId } = useParams<{ matchId: string }>();
+  const { debateId } = useParams<{ debateId: string }>();
   const navigate = useNavigate();
   const [debateSettings, setDebateSettings] = useState<DebateSettings | null>(null);
   const [debateState, setDebateState] = useState<DebateState>({
@@ -49,23 +51,34 @@ export default function Debate() {
   const [googleMeetUrl, setGoogleMeetUrl] = useState("");
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isAudioOn, setIsAudioOn] = useState(true);
-  const [isStructureCollapsed, setIsStructureCollapsed] = useState(false);
+  const [isStructureCollapsed, setIsStructureCollapsed] = useState(true);
   const [prepTimerActive, setPrepTimerActive] = useState(false);
+  const [showMeetInput, setShowMeetInput] = useState(false);
+  const [meetLinkInput, setMeetLinkInput] = useState("");
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (!matchId) return;
+    if (!debateId) return;
 
-    const unsubscribe = onSnapshot(doc(db, "matches", matchId), (doc) => {
+    const unsubscribe = onSnapshot(doc(db, "debates", debateId), (doc) => {
       if (doc.exists()) {
         const data = doc.data();
         const currentUser = auth.currentUser;
         
         if (data.hostId === currentUser?.uid) {
           setIsHost(true);
+        }
+
+        // Load Google Meet URL if it exists
+        if (data.googleMeetUrl) {
+          setGoogleMeetUrl(data.googleMeetUrl);
+        } else if (data.meetId) {
+          // If we have a meetId but no URL, construct it
+          const meetUrl = `https://meet.google.com/${data.meetId}`;
+          setGoogleMeetUrl(meetUrl);
         }
 
         // Set debate settings based on format
@@ -79,6 +92,7 @@ export default function Debate() {
             rebuttalTime: 4 * 60, // 4 minutes
             summaryTime: 2 * 60 // 2 minutes
           });
+          setDebateState(prev => ({ ...prev, prepTimeRemaining: 4 * 60 }));
         } else if (data.format === "PF") {
           setDebateSettings({
             format: "PF",
@@ -89,13 +103,19 @@ export default function Debate() {
             rebuttalTime: 4 * 60, // 4 minutes
             summaryTime: 2 * 60 // 2 minutes
           });
-        }
-
-        // Set initial prep time
-        if (data.format === "LD") {
-          setDebateState(prev => ({ ...prev, prepTimeRemaining: 4 * 60 }));
-        } else {
           setDebateState(prev => ({ ...prev, prepTimeRemaining: 2 * 60 }));
+        } else if (data.format === "AOTB") {
+          // AOTB format - similar to LD but with different structure
+          setDebateSettings({
+            format: "AOTB",
+            timeControl: data.timeControl,
+            prepTime: 4 * 60, // 4 minutes
+            speechTime: 6 * 60, // 6 minutes
+            crossTime: 3 * 60, // 3 minutes
+            rebuttalTime: 4 * 60, // 4 minutes
+            summaryTime: 2 * 60 // 2 minutes
+          });
+          setDebateState(prev => ({ ...prev, prepTimeRemaining: 4 * 60 }));
         }
 
         // Check if both players have joined
@@ -105,7 +125,7 @@ export default function Debate() {
     });
 
     return () => unsubscribe();
-  }, [matchId]);
+  }, [debateId]);
 
   useEffect(() => {
     if (debateState.isActive && debateState.timeRemaining > 0) {
@@ -263,37 +283,69 @@ export default function Debate() {
     return ((totalTime - debateState.timeRemaining) / totalTime) * 100;
   };
 
-  const createGoogleMeet = () => {
-    if (!isHost) return;
+  const createGoogleMeet = async () => {
+    if (!isHost || !debateId) return;
     
-    // Create a proper Google Meet using the utility
-    const meetDetails = createMeetUtil();
-    
-    // Create advanced URL with debate-optimized settings
-    const advancedUrl = createAdvancedMeetUrl(meetDetails.meetId, {
-      autoJoinWithMic: false, // Don't auto-join with mic for debates
-      autoJoinWithVideo: false, // Don't auto-join with video
-      muteOnEntry: true, // Mute on entry for better control
-      enableChat: true, // Enable chat for debate notes
-      enableHandRaise: true, // Enable hand raise for questions
-      enableScreenShare: true, // Enable screen share for evidence
-      requireApproval: false, // No approval needed for debates
-      allowAnonymous: false // No anonymous users for debates
-    });
-    
-    setGoogleMeetUrl(advancedUrl);
-    
-    // Update the match document with the meet URL and details
-    if (matchId) {
-      updateDoc(doc(db, "matches", matchId), {
-        googleMeetUrl: advancedUrl,
-        meetId: meetDetails.meetId,
-        meetDetails: meetDetails,
-        advancedUrl: advancedUrl
+    try {
+      // Try to create meeting via Cloud Function (if available)
+      const createMeetFunction = httpsCallable(functions, 'createGoogleMeet');
+      const result = await createMeetFunction({
+        title: `${debateSettings?.format} Debate`,
+        startTime: new Date().toISOString(),
+        endTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour later
       });
+      
+      const meetLink = (result.data as any)?.meetLink;
+      if (meetLink) {
+        setGoogleMeetUrl(meetLink);
+        await updateDoc(doc(db, "debates", debateId), {
+          googleMeetUrl: meetLink,
+          createdAt: serverTimestamp()
+        });
+        toast.success("Google Meet created successfully!");
+        return;
+      }
+    } catch (error: any) {
+      console.log("Cloud Function not available or failed, using manual method:", error);
+      // If function doesn't exist or fails, fall through to manual method
     }
     
-    toast.success(`Google Meet created! Meeting ID: ${formatMeetingId(meetDetails.meetId)}`);
+    // Fallback: Open Google Meet in a new tab to create a meeting
+    // User will get a meeting link they can share
+    window.open('https://meet.google.com/new', '_blank', 'noopener,noreferrer');
+    setShowMeetInput(true);
+    toast.info("Create a meeting in the new tab, then paste the meeting link below");
+  };
+
+  const saveMeetLink = async () => {
+    if (!debateId || !meetLinkInput.trim()) {
+      toast.error("Please enter a valid Google Meet link");
+      return;
+    }
+
+    // Validate it's a Google Meet link
+    if (!meetLinkInput.includes('meet.google.com')) {
+      toast.error("Please enter a valid Google Meet link (must contain meet.google.com)");
+      return;
+    }
+
+    try {
+      const cleanUrl = meetLinkInput.trim();
+      setGoogleMeetUrl(cleanUrl);
+      setShowMeetInput(false);
+      setMeetLinkInput("");
+
+      // Update the debate document
+      await updateDoc(doc(db, "debates", debateId), {
+        googleMeetUrl: cleanUrl,
+        createdAt: serverTimestamp()
+      });
+
+      toast.success("Google Meet link saved!");
+    } catch (error) {
+      console.error("Error saving Google Meet link:", error);
+      toast.error("Failed to save Google Meet link");
+    }
   };
 
   const copyMeetingInstructions = () => {
@@ -332,7 +384,7 @@ export default function Debate() {
     
     try {
       // Update match status to active
-      await updateDoc(doc(db, "matches", matchId!), {
+      await updateDoc(doc(db, "debates", debateId!), {
         status: "active",
         startedAt: serverTimestamp()
       });
@@ -347,8 +399,8 @@ export default function Debate() {
   const joinDebate = async () => {
     try {
       // Update match status to active if not already
-      if (debateSettings && matchId) {
-        await updateDoc(doc(db, "matches", matchId), {
+      if (debateSettings && debateId) {
+        await updateDoc(doc(db, "debates", debateId), {
           status: "active",
           joinedAt: serverTimestamp()
         });
@@ -412,79 +464,140 @@ export default function Debate() {
               <CardContent>
                 {googleMeetUrl ? (
                   <div className="space-y-4">
-                    <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                      <div className="text-center">
-                        <p className="text-muted-foreground mb-2">Google Meet</p>
+                    {/* Video Conference - Simple button, Google Meet handles overlay natively */}
+                    <div className="aspect-video bg-gradient-to-br from-blue-600 to-purple-700 rounded-lg overflow-hidden border border-border relative flex items-center justify-center">
+                      <div className="text-center p-6 space-y-4 z-10">
+                        <div className="h-16 w-16 mx-auto bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                          <Video className="h-8 w-8 text-white" />
+                        </div>
                         <div className="space-y-2">
-                          <Button asChild className="w-full">
-                            <a href={googleMeetUrl} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4 mr-2" />
-                              Join Meeting
-                            </a>
+                          <h3 className="text-xl font-semibold text-white">Video Conference</h3>
+                          <p className="text-white/80 text-sm max-w-md">
+                            Click to join the meeting. Google Meet will create an overlay when you switch tabs.
+                          </p>
+                        </div>
+                        <div className="flex gap-3 justify-center">
+                          <Button
+                            size="lg"
+                            className="bg-white text-blue-600 hover:bg-white/90"
+                            onClick={() => {
+                              window.open(googleMeetUrl, '_blank', 'noopener,noreferrer');
+                            }}
+                          >
+                            <Video className="h-5 w-5 mr-2" />
+                            Join Meeting
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="w-full"
+                          <Button
+                            size="lg"
+                            variant="outline"
+                            className="bg-white/10 text-white border-white/20 hover:bg-white/20"
                             onClick={() => {
                               navigator.clipboard.writeText(googleMeetUrl);
                               toast.success("Meeting link copied to clipboard!");
                             }}
                           >
-                            <Copy className="h-4 w-4 mr-2" />
+                            <Copy className="h-5 w-5 mr-2" />
                             Copy Link
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="w-full"
-                            onClick={copyMeetingInstructions}
-                          >
-                            <Copy className="h-4 w-4 mr-2" />
-                            Copy Instructions
-                          </Button>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="bg-muted p-3 rounded-lg">
-                      <p className="text-sm font-medium text-foreground mb-2">Meeting Details</p>
-                      <div className="space-y-2 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Meeting ID:</span>
-                          <span className="font-mono text-foreground font-bold">
-                            {formatMeetingId(googleMeetUrl.split('/').pop()?.split('?')[0] || '')}
-                          </span>
+                    {/* Collapsible Meeting Details */}
+                    <div className="border rounded-lg">
+                      <button
+                        onClick={() => setIsStructureCollapsed(!isStructureCollapsed)}
+                        className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">Meeting Details</span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Format:</span>
-                          <span className="text-foreground font-medium">{debateSettings?.format}</span>
+                        {isStructureCollapsed ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
+                      {!isStructureCollapsed && (
+                        <div className="p-3 pt-0 space-y-3 border-t">
+                          <div className="space-y-3 text-xs">
+                            <div className="pt-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">Meeting ID:</span>
+                                <span className="font-mono text-foreground font-bold">
+                                  {formatMeetingId(googleMeetUrl.split('/').pop()?.split('?')[0] || '')}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Format:</span>
+                              <span className="text-foreground font-medium">{debateSettings?.format}</span>
+                            </div>
+                            <div className="pt-2 border-t border-border">
+                              <p className="text-muted-foreground mb-1">Quick Join:</p>
+                              <p className="font-mono text-foreground break-all text-xs">{googleMeetUrl}</p>
+                            </div>
+                          </div>
+                          
+                          {/* QR Code for mobile joining */}
+                          <div className="text-center pt-2 border-t border-border">
+                            <p className="text-xs text-muted-foreground mb-2">Scan to join on mobile</p>
+                            <img 
+                              src={createQRCodeUrl(googleMeetUrl.split('/').pop()?.split('?')[0] || '')}
+                              alt="QR Code for Google Meet"
+                              className="w-24 h-24 mx-auto border border-border rounded-lg"
+                            />
+                          </div>
                         </div>
-                        <div className="pt-2 border-t border-border">
-                          <p className="text-muted-foreground mb-1">Quick Join:</p>
-                          <p className="font-mono text-foreground break-all text-xs">{googleMeetUrl}</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* QR Code for mobile joining */}
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground mb-2">Scan to join on mobile</p>
-                      <img 
-                        src={createQRCodeUrl(googleMeetUrl.split('/').pop()?.split('?')[0] || '')}
-                        alt="QR Code for Google Meet"
-                        className="w-24 h-24 mx-auto border border-border rounded-lg"
-                      />
+                      )}
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground mb-4">No meeting created yet</p>
+                  <div className="space-y-4">
+                    {showMeetInput ? (
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-sm font-medium">Paste Google Meet Link</Label>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Create a meeting at meet.google.com/new, then paste the link here
+                          </p>
+                          <div className="flex gap-2">
+                            <Input
+                              type="url"
+                              placeholder="https://meet.google.com/abc-defg-hij"
+                              value={meetLinkInput}
+                              onChange={(e) => setMeetLinkInput(e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button onClick={saveMeetLink} size="sm">
+                              <Check className="h-4 w-4 mr-2" />
+                              Save
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                setShowMeetInput(false);
+                                setMeetLinkInput("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 space-y-4">
+                        <p className="text-muted-foreground">No meeting link added yet</p>
                     {isHost ? (
                       <div className="space-y-2">
                         <Button onClick={createGoogleMeet} className="w-full">
-                          Create Google Meet
+                          <Link2 className="h-4 w-4 mr-2" />
+                          Create & Add Google Meet Link
                         </Button>
+                        <p className="text-xs text-muted-foreground text-center">
+                          This will open Google Meet in a new tab. Create a meeting and paste the link.
+                        </p>
                         <Button 
                           onClick={startDebate} 
                           variant="default" 
@@ -505,8 +618,10 @@ export default function Debate() {
                           Join Debate
                         </Button>
                         <p className="text-xs text-muted-foreground">
-                          You can rejoin anytime from the lobby
+                              Waiting for host to add meeting link
                         </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

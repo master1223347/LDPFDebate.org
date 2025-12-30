@@ -12,11 +12,11 @@ import { auth } from "@/lib/firebase";
 import { Clock, AlertCircle } from "lucide-react";
 
 
-type Match = {
+type Debate = {
   id: string;
   format: "LD" | "PF";
-  timeControl: string;
-  difficulty: string;
+  timeControl?: string;
+  difficulty?: string;
   hostId: string;
   hostName?: string;
   hostUsername?: string;
@@ -46,29 +46,29 @@ type Proposal = {
   proposerId: string;
   proposerName: string;
   proposerUsername: string;
-  matchId: string;
+  debateId: string;
 };
 
 export default function Lobby() {
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [debates, setDebates] = useState<Debate[]>([]);
+  const [selectedDebateId, setSelectedDebateId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [myProposals, setMyProposals] = useState<Array<Proposal & { match: Match }>>([]);
+  const [myProposals, setMyProposals] = useState<Array<Proposal & { debate: Debate }>>([]);
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
   const [counterProposalOpen, setCounterProposalOpen] = useState(false);
   const navigate = useNavigate();
   useEffect(() => {
-    // Listen to waiting, ready, and active matches
+    // Listen to waiting, ready, and active debates
     const q = query(
-      collection(db, "matches"), 
+      collection(db, "debates"), 
       where("status", "in", ["waiting", "ready", "active"])
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...(doc.data() as Omit<Match, "id">),
+        ...(doc.data() as Omit<Debate, "id">),
       }));
-      setMatches(data);
+      setDebates(data);
     });
 
     return () => unsubscribe();
@@ -80,12 +80,12 @@ export default function Lobby() {
 
     const fetchMyProposals = async () => {
       try {
-        // Get all waiting matches
-        const waitingMatches = matches.filter(m => m.status === "waiting");
-        const proposalsData: Array<Proposal & { match: Match }> = [];
+        // Get all waiting debates
+        const waitingDebates = debates.filter(d => d.status === "waiting");
+        const proposalsData: Array<Proposal & { debate: Debate }> = [];
 
-        for (const match of waitingMatches) {
-          const proposalsRef = collection(db, "matches", match.id, "proposals");
+        for (const debate of waitingDebates) {
+          const proposalsRef = collection(db, "debates", debate.id, "proposals");
           const q = query(
             proposalsRef,
             where("proposerId", "==", auth.currentUser?.uid || "")
@@ -97,8 +97,8 @@ export default function Lobby() {
             proposalsData.push({
               ...proposalData,
               id: doc.id,
-              matchId: match.id,
-              match: match,
+              debateId: debate.id,
+              debate: debate,
             });
           });
         }
@@ -109,10 +109,10 @@ export default function Lobby() {
       }
     };
 
-    if (matches.length > 0) {
+    if (debates.length > 0) {
       fetchMyProposals();
     }
-  }, [matches]);
+  }, [debates]);
 
   return (
       
@@ -128,36 +128,36 @@ export default function Lobby() {
       </div>
       
       {/* Active Debates Section */}
-      {matches.filter(m => m.status === "active").length > 0 && (
+      {debates.filter(d => d.status === "active").length > 0 && (
         <div className="mb-8">
           <h2 className="text-2xl font-semibold text-foreground mb-4">Active Debates</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {matches.filter(m => m.status === "active").map((match) => (
-              <Card key={match.id} className="bg-gradient-hero border-border flex flex-col justify-between">
+            {debates.filter(d => d.status === "active").map((debate) => (
+              <Card key={debate.id} className="bg-gradient-hero border-border flex flex-col justify-between">
                 <CardContent className="p-4 space-y-2 flex-1">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-semibold text-foreground">{match.format} Debate</h2>
+                    <h2 className="text-lg font-semibold text-foreground">{debate.format} Debate</h2>
                     <Badge variant="default">Active</Badge>
                   </div>
                   <div className="text-sm font-semibold text-gray-800">
-                    <span className="text-primary">{match.hostUsername}</span> vs <span className="text-primary">{match.opponentUsername}</span>
+                    <span className="text-primary">{debate.hostUsername}</span> vs <span className="text-primary">{debate.opponentUsername}</span>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Format: {match.format} • Time: {match.timeControl}
+                    Format: {debate.format} {debate.timeControl && `• Time: ${debate.timeControl}`}
                   </div>
                   <div className="flex gap-2 mt-2">
                     <Button
                       variant="outline"
                       className="flex-1"
-                      onClick={() => navigate(`/match/${match.id}`)}
+                      onClick={() => navigate(`/debate/${debate.id}`)}
                     >
                       View Details
                     </Button>
                     <Button
                       className="flex-1"
-                      onClick={() => navigate(`/debate/${match.id}`)}
+                      onClick={() => navigate(`/debate/${debate.id}`)}
                     >
-                      {match.hostId === auth.currentUser?.uid || match.opponentId === auth.currentUser?.uid 
+                      {debate.hostId === auth.currentUser?.uid || debate.opponentId === auth.currentUser?.uid 
                         ? "Rejoin Debate" 
                         : "Join Debate"
                       }
@@ -176,34 +176,34 @@ export default function Lobby() {
       
 
       {/* Ready to Join Section */}
-      {matches.filter(m => m.status === "ready").length > 0 && (
+      {debates.filter(d => d.status === "ready").length > 0 && (
         <div className="mb-8">
           <h2 className="text-2xl font-semibold text-foreground mb-4">Ready to Join</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {matches.filter(m => m.status === "ready").map((match) => (
-              <Card key={match.id} className="bg-gradient-hero border-border flex flex-col justify-between">
+            {debates.filter(d => d.status === "ready").map((debate) => (
+              <Card key={debate.id} className="bg-gradient-hero border-border flex flex-col justify-between">
                 <CardContent className="p-4 space-y-2 flex-1">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-semibold text-foreground">{match.format} Match</h2>
+                    <h2 className="text-lg font-semibold text-foreground">{debate.format} Debate</h2>
                     <Badge variant="default">Ready</Badge>
                   </div>
                   <div className="text-sm font-semibold text-gray-800">
-                    <span className="text-primary">{match.hostUsername}</span> vs <span className="text-primary">{match.opponentUsername}</span>
+                    <span className="text-primary">{debate.hostUsername}</span> vs <span className="text-primary">{debate.opponentUsername}</span>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Format: {match.format} • Time: {match.timeControl}
+                    Format: {debate.format} {debate.timeControl && `• Time: ${debate.timeControl}`}
                   </div>
                   <div className="flex gap-2 mt-2">
                     <Button
                       variant="outline"
                       className="flex-1"
-                      onClick={() => navigate(`/match/${match.id}`)}
+                      onClick={() => navigate(`/debate/${debate.id}`)}
                     >
                       View Details
                     </Button>
                     <Button
                       className="flex-1"
-                      onClick={() => navigate(`/debate/${match.id}`)}
+                      onClick={() => navigate(`/debate/${debate.id}`)}
                     >
                       Join Debate
                     </Button>
@@ -230,11 +230,11 @@ export default function Lobby() {
               <Card key={proposal.id} className="bg-gradient-hero border-2 border-primary border-dashed">
                 <CardContent className="p-4 space-y-3">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-foreground">{proposal.match.format} Match</h3>
+                    <h3 className="text-lg font-semibold text-foreground">{proposal.debate.format} Debate</h3>
                     <Badge variant="default">Response Needed</Badge>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Host: {proposal.match.hostUsername}
+                    Host: {proposal.debate.hostUsername}
                   </div>
                   <div className="p-3 bg-primary/10 rounded-lg">
                     <div className="flex items-center gap-2 mb-1">
@@ -267,26 +267,28 @@ export default function Lobby() {
       )}
 
       {/* Pending Proposals Section - Only show for hosts */}
-      {matches.filter(m => m.status === "waiting" && m.hostId === auth.currentUser?.uid).length > 0 && (
+      {debates.filter(d => d.status === "waiting" && d.hostId === auth.currentUser?.uid).length > 0 && (
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-foreground mb-4">Your Matches - Pending Proposals</h2>
+          <h2 className="text-2xl font-semibold text-foreground mb-4">Your Debates - Pending Proposals</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {matches.filter(m => m.status === "waiting" && m.hostId === auth.currentUser?.uid).map((match) => (
-              <Card key={match.id} className="bg-gradient-hero border-border flex flex-col justify-between">
+            {debates.filter(d => d.status === "waiting" && d.hostId === auth.currentUser?.uid).map((debate) => (
+              <Card key={debate.id} className="bg-gradient-hero border-border flex flex-col justify-between">
                 <CardContent className="p-4 space-y-2 flex-1">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-semibold text-foreground">{match.format} Match</h2>
-                    <Badge variant="secondary">{match.timeControl}</Badge>
+                    <h2 className="text-lg font-semibold text-foreground">{debate.format} Debate</h2>
+                    {debate.timeControl && <Badge variant="secondary">{debate.timeControl}</Badge>}
                   </div>
                   <div className="text-sm font-semibold text-gray-800">
-                    <span className="text-primary">Host: {match.hostUsername}</span>
+                    <span className="text-primary">Host: {debate.hostUsername}</span>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Difficulty: <span className="capitalize">{match.difficulty}</span>
-                  </div>
+                  {debate.difficulty && (
+                    <div className="text-sm text-muted-foreground">
+                      Difficulty: <span className="capitalize">{debate.difficulty}</span>
+                    </div>
+                  )}
                   <Button
                     className="w-full mt-2"
-                    onClick={() => navigate(`/match-proposals/${match.id}`)}
+                    onClick={() => navigate(`/debate-proposals/${debate.id}`)}
                   >
                     View Proposals
                   </Button>
@@ -300,30 +302,32 @@ export default function Lobby() {
         </div>
       )}
 
-      {/* Waiting Matches Section */}
+      {/* Waiting Debates Section */}
       <div className="mb-8">
-        <h2 className="text-2xl font-semibold text-foreground mb-4">Available Matches to Join</h2>
-        {matches.filter(m => m.status === "waiting" && m.hostId !== auth.currentUser?.uid).length === 0 ? (
-          <p className="text-muted-foreground">No matches currently available to join. Start one from the PvP page!</p>
+        <h2 className="text-2xl font-semibold text-foreground mb-4">Available Debates to Join</h2>
+        {debates.filter(d => d.status === "waiting" && d.hostId !== auth.currentUser?.uid).length === 0 ? (
+          <p className="text-muted-foreground">No debates currently available to join. Start one from the PvP page!</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {matches.filter(m => m.status === "waiting" && m.hostId !== auth.currentUser?.uid).map((match) => (
-              <Card key={match.id} className="bg-gradient-hero border-border flex flex-col justify-between">
+            {debates.filter(d => d.status === "waiting" && d.hostId !== auth.currentUser?.uid).map((debate) => (
+              <Card key={debate.id} className="bg-gradient-hero border-border flex flex-col justify-between">
                 <CardContent className="p-4 space-y-2 flex-1">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-semibold text-foreground">{match.format} Match</h2>
-                    <Badge variant="secondary">{match.timeControl}</Badge>
+                    <h2 className="text-lg font-semibold text-foreground">{debate.format} Debate</h2>
+                    {debate.timeControl && <Badge variant="secondary">{debate.timeControl}</Badge>}
                   </div>
                   <div className="text-sm font-semibold text-gray-800">
-                    <span className="text-primary">{match.hostUsername}</span>
+                    <span className="text-primary">{debate.hostUsername}</span>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Difficulty: <span className="capitalize">{match.difficulty}</span>
-                  </div>
+                  {debate.difficulty && (
+                    <div className="text-sm text-muted-foreground">
+                      Difficulty: <span className="capitalize">{debate.difficulty}</span>
+                    </div>
+                  )}
                   <Button
                     className="w-full mt-2"
                     onClick={() => {
-                      setSelectedMatchId(match.id);
+                      setSelectedDebateId(debate.id);
                       setIsModalOpen(true);
                     }}
                   >
@@ -332,7 +336,7 @@ export default function Lobby() {
                 </CardContent>
                 {/* Gray footer with host avatar + name */}
                 <div className="px-4 py-2 bg-muted text-xs text-muted-foreground rounded-b-lg">
-                  Host: <span className="text-foreground font-medium">{match.hostName || "Unknown"}</span>
+                  Host: <span className="text-foreground font-medium">{debate.hostName || "Unknown"}</span>
                 </div>
               </Card>
             ))}
@@ -341,7 +345,7 @@ export default function Lobby() {
       </div>
       
       <JoinMatchModal
-        matchId={selectedMatchId ?? ""}
+        debateId={selectedDebateId ?? ""}
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
@@ -349,7 +353,7 @@ export default function Lobby() {
       {selectedProposal && (
         <CounterProposalResponse
           proposal={selectedProposal}
-          matchId={selectedProposal.matchId}
+          debateId={selectedProposal.debateId}
           open={counterProposalOpen}
           onClose={() => {
             setCounterProposalOpen(false);

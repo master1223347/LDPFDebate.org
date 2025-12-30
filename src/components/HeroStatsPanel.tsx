@@ -33,37 +33,37 @@ export const HeroStatsPanel = () => {
 
             // Calculate stats from matches
             try {
-              const matchesRef = collection(db, "matches");
-              const userMatchesQuery = query(
-                matchesRef,
+              const debatesRef = collection(db, "debates");
+              const userDebatesQuery = query(
+                debatesRef,
                 where("hostId", "==", user.uid)
               );
               
-              const opponentMatchesQuery = query(
-                matchesRef,
+              const opponentDebatesQuery = query(
+                debatesRef,
                 where("opponentId", "==", user.uid)
               );
 
-              const [hostMatches, opponentMatches] = await Promise.all([
-                getDocs(userMatchesQuery).catch(() => ({ docs: [] })),
-                getDocs(opponentMatchesQuery).catch(() => ({ docs: [] })),
+              const [hostDebates, opponentDebates] = await Promise.all([
+                getDocs(userDebatesQuery).catch(() => ({ docs: [] })),
+                getDocs(opponentDebatesQuery).catch(() => ({ docs: [] })),
               ]);
 
-              // Combine all matches
-              const allMatches = [
-                ...hostMatches.docs.map(d => ({ ...d.data(), id: d.id, isHost: true })),
-                ...opponentMatches.docs.map(d => ({ ...d.data(), id: d.id, isHost: false })),
+              // Combine all debates
+              const allDebates = [
+                ...hostDebates.docs.map(d => ({ ...d.data(), id: d.id, isHost: true })),
+                ...opponentDebates.docs.map(d => ({ ...d.data(), id: d.id, isHost: false })),
               ];
 
-              // Filter completed matches (you may need to adjust this based on your match status)
-              const completedMatches = allMatches.filter(m => 
+              // Filter completed debates (you may need to adjust this based on your debate status)
+              const completedDebates = allDebates.filter(d => 
                 m.status === "completed" || m.status === "finished"
               );
 
-              // Calculate wins/losses (this is simplified - adjust based on your match result structure)
-              const wins = completedMatches.length; // Simplified - you'll need to check actual results
-              const totalMatches = completedMatches.length;
-              const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+              // Calculate wins/losses (this is simplified - adjust based on your debate result structure)
+              const wins = completedDebates.length; // Simplified - you'll need to check actual results
+              const totalDebates = completedDebates.length;
+              const winRate = totalDebates > 0 ? Math.round((wins / totalDebates) * 100) : 0;
 
               // Get rating history for last change
               const ratingHistory = data.ratingHistory || [];
@@ -72,10 +72,10 @@ export const HeroStatsPanel = () => {
                 : 0;
 
               // Calculate win streak (simplified)
-              const winStreak = 0; // You'll need to implement this based on your match history
+              const winStreak = 0; // You'll need to implement this based on your debate history
 
               setStats({
-                totalMatches,
+                totalMatches: totalDebates,
                 wins,
                 losses: totalMatches - wins,
                 winRate,

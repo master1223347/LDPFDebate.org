@@ -43,8 +43,8 @@ const App = () => (
             } />
           <Route path="/vs-ai" element={<PlayerVsAI />} />
           <Route path="/vs-player" element={<PlayerVsPlayer />} />
-          <Route path="/debate/:matchId" element={<Debate />} />
-          <Route path="/match-proposals/:matchId" element={<MatchProposals />} />
+          <Route path="/debate/:debateId" element={<Debate />} />
+          <Route path="/debate-proposals/:debateId" element={<MatchProposals />} />
           <Route path="/join" element={<JoinMatch />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
@@ -53,7 +53,7 @@ const App = () => (
           <Route path="/signup" element={<SignUp />} />
           <Route path="/login" element={<Login />} />
           <Route path="/lobby" element={<Lobby />} />
-          <Route path="/match/:matchId" element={<LiveMatch />} />
+          <Route path="/debate/:debateId" element={<LiveMatch />} />
           <Route path="/building" element={<CurrentlyBuildingPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

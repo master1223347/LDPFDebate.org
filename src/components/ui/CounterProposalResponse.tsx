@@ -75,18 +75,18 @@ export function CounterProposalResponse({ proposal, matchId, open, onClose }: Co
   };
 
   const handleAcceptCounterProposal = async () => {
-    if (!matchId || !proposal.counterProposal) return;
+    if (!debateId || !proposal.counterProposal) return;
 
     try {
-      const proposalRef = doc(db, "matches", matchId, "proposals", proposal.id);
-      const matchRef = doc(db, "matches", matchId);
+      const proposalRef = doc(db, "debates", debateId, "proposals", proposal.id);
+      const debateRef = doc(db, "debates", debateId);
       
-      // Get match data
-      const matchSnap = await getDoc(matchRef);
-      const matchData = matchSnap.data();
+      // Get debate data
+      const debateSnap = await getDoc(debateRef);
+      const debateData = debateSnap.data();
       
-      if (!matchData) {
-        toast.error("Match not found");
+      if (!debateData) {
+        toast.error("Debate not found");
         return;
       }
 
@@ -95,8 +95,8 @@ export function CounterProposalResponse({ proposal, matchId, open, onClose }: Co
         status: "accepted"
       });
 
-      // Update match to include opponent
-      await updateDoc(matchRef, {
+      // Update debate to include opponent
+      await updateDoc(debateRef, {
         opponentId: auth.currentUser?.uid || proposal.proposerId,
         opponentName: proposal.proposerName || "Unknown",
         opponentUsername: proposal.proposerUsername || "Unknown",
@@ -109,8 +109,8 @@ export function CounterProposalResponse({ proposal, matchId, open, onClose }: Co
 
       // Send notification to host
       await addDoc(collection(db, "notifications"), {
-        matchId,
-        hostId: matchData.hostId,
+        debateId,
+        hostId: debateData.hostId,
         senderId: auth.currentUser?.uid || null,
         senderName: auth.currentUser?.displayName || "Proposer",
         message: "Your counter-proposal has been accepted!",
@@ -119,7 +119,7 @@ export function CounterProposalResponse({ proposal, matchId, open, onClose }: Co
         type: "counter_proposal_accepted",
       });
 
-      toast.success("Counter-proposal accepted! The match is now ready.");
+      toast.success("Counter-proposal accepted! The debate is now ready.");
       onClose();
     } catch (error) {
       console.error("Error accepting counter-proposal:", error);
@@ -128,10 +128,10 @@ export function CounterProposalResponse({ proposal, matchId, open, onClose }: Co
   };
 
   const handleRejectCounterProposal = async () => {
-    if (!matchId) return;
+    if (!debateId) return;
 
     try {
-      await updateDoc(doc(db, "matches", matchId, "proposals", proposal.id), {
+      await updateDoc(doc(db, "debates", debateId, "proposals", proposal.id), {
         status: "rejected"
       });
 
@@ -144,7 +144,7 @@ export function CounterProposalResponse({ proposal, matchId, open, onClose }: Co
   };
 
   const handleCounterPropose = async () => {
-    if (!matchId || !counterTimezone || !counterDate || !counterTime) {
+    if (!debateId || !counterTimezone || !counterDate || !counterTime) {
       toast.error("Please fill out all required fields.");
       return;
     }
@@ -154,7 +154,7 @@ export function CounterProposalResponse({ proposal, matchId, open, onClose }: Co
       const finalDate = new Date(counterDate);
       finalDate.setHours(hours, minutes, 0, 0);
 
-      const proposalRef = doc(db, "matches", matchId, "proposals", proposal.id);
+      const proposalRef = doc(db, "debates", debateId, "proposals", proposal.id);
       const proposalSnap = await getDoc(proposalRef);
       const currentData = proposalSnap.data() as Proposal;
       
@@ -185,12 +185,12 @@ export function CounterProposalResponse({ proposal, matchId, open, onClose }: Co
       });
 
       // Send notification to host
-      const matchSnap = await getDoc(doc(db, "matches", matchId));
-      const matchData = matchSnap.data();
+      const debateSnap = await getDoc(doc(db, "debates", debateId));
+      const debateData = debateSnap.data();
       
       await addDoc(collection(db, "notifications"), {
-        matchId,
-        hostId: matchData?.hostId,
+        debateId,
+        hostId: debateData?.hostId,
         senderId: auth.currentUser?.uid || null,
         senderName: auth.currentUser?.displayName || "Proposer",
         message: "Proposer has counter-proposed a new time",

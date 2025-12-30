@@ -20,13 +20,13 @@ export const LiveQueueStatus = () => {
   useEffect(() => {
     // Listen to active matches
     const activeMatchesQuery = query(
-      collection(db, "matches"),
+      collection(db, "debates"),
       where("status", "in", ["ready", "active"])
     );
 
     // Listen to waiting matches (in queue)
     const queueQuery = query(
-      collection(db, "matches"),
+      collection(db, "debates"),
       where("status", "==", "waiting")
     );
 
@@ -49,7 +49,7 @@ export const LiveQueueStatus = () => {
     const getRecentFinishes = async () => {
       try {
         const finishedQuery = query(
-          collection(db, "matches"),
+          collection(db, "debates"),
           where("status", "==", "completed")
         );
         const snapshot = await getDocs(finishedQuery).catch(() => ({ docs: [] }));

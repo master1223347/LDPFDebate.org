@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Calendar, Clock, User, MessageSquare, RefreshCw, Edit } from "lucide-react";
+import { Calendar, Clock, User, MessageSquare, RefreshCw, ArrowLeft, Mail, Phone, MessageCircle, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -42,11 +42,11 @@ type Proposal = {
   }>;
 };
 
-type Match = {
+type Debate = {
   id: string;
   format: "LD" | "PF";
-  timeControl: string;
-  difficulty: string;
+  timeControl?: string;
+  difficulty?: string;
   hostId: string;
   hostName?: string;
   hostUsername?: string;
@@ -55,10 +55,10 @@ type Match = {
 };
 
 export default function MatchProposals() {
-  const { matchId } = useParams<{ matchId: string }>();
+  const { debateId } = useParams<{ debateId: string }>();
   const navigate = useNavigate();
   const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [match, setMatch] = useState<Match | null>(null);
+  const [debate, setDebate] = useState<Debate | null>(null);
   const [loading, setLoading] = useState(true);
   const [counterProposalOpen, setCounterProposalOpen] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
@@ -68,17 +68,17 @@ export default function MatchProposals() {
   const [counterNotes, setCounterNotes] = useState("");
 
   useEffect(() => {
-    if (!matchId) return;
+    if (!debateId) return;
 
-    // Get match details
-    const matchUnsubscribe = onSnapshot(doc(db, "matches", matchId), (doc) => {
+    // Get debate details
+    const debateUnsubscribe = onSnapshot(doc(db, "debates", debateId), (doc) => {
       if (doc.exists()) {
-        const data = doc.data() as Match;
-        setMatch({ id: doc.id, ...data });
+        const data = doc.data() as Debate;
+        setDebate({ id: doc.id, ...data });
         
         // Check if current user is the host
         if (data.hostId !== auth.currentUser?.uid) {
-          toast.error("You can only view proposals for your own matches");
+          toast.error("You can only view proposals for your own debates");
           navigate("/lobby");
           return;
         }
@@ -86,9 +86,9 @@ export default function MatchProposals() {
       setLoading(false);
     });
 
-    // Get proposals for this match
+    // Get proposals for this debate
     const proposalsUnsubscribe = onSnapshot(
-      collection(doc(db, "matches", matchId), "proposals"),
+      collection(doc(db, "debates", debateId), "proposals"),
       (snapshot) => {
         const data = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -99,13 +99,13 @@ export default function MatchProposals() {
     );
 
     return () => {
-      matchUnsubscribe();
+      debateUnsubscribe();
       proposalsUnsubscribe();
     };
-  }, [matchId, navigate]);
+  }, [debateId, navigate]);
 
   const handleAcceptProposal = async (proposal: Proposal) => {
-    if (!matchId || !match) return;
+    if (!debateId || !debate) return;
 
     try {
       // If accepting a counter-proposal, use the counter-proposal's time
@@ -117,12 +117,12 @@ export default function MatchProposals() {
       } : proposal;
 
       // Update the proposal status
-      await updateDoc(doc(db, "matches", matchId, "proposals", proposal.id), {
+      await updateDoc(doc(db, "debates", debateId, "proposals", proposal.id), {
         status: "accepted"
       });
 
-      // Update the match to include the opponent
-      await updateDoc(doc(db, "matches", matchId), {
+      // Update the debate to include the opponent
+      await updateDoc(doc(db, "debates", debateId), {
         opponentId: proposal.proposerId,
         opponentName: proposal.proposerName,
         opponentUsername: proposal.proposerUsername,
@@ -136,12 +136,12 @@ export default function MatchProposals() {
       // Reject all other proposals
       const otherProposals = proposals.filter(p => p.id !== proposal.id);
       for (const otherProposal of otherProposals) {
-        await updateDoc(doc(db, "matches", matchId, "proposals", otherProposal.id), {
+        await updateDoc(doc(db, "debates", debateId, "proposals", otherProposal.id), {
           status: "rejected"
         });
       }
 
-      toast.success("Proposal accepted! The match is now ready. Both players can join from the lobby.");
+      toast.success("Proposal accepted! The debate is now ready. Both players can join from the lobby.");
       navigate("/lobby");
     } catch (error) {
       console.error("Error accepting proposal:", error);
@@ -150,10 +150,10 @@ export default function MatchProposals() {
   };
 
   const handleRejectProposal = async (proposal: Proposal) => {
-    if (!matchId) return;
+    if (!debateId) return;
 
     try {
-      await updateDoc(doc(db, "matches", matchId, "proposals", proposal.id), {
+      await updateDoc(doc(db, "debates", debateId, "proposals", proposal.id), {
         status: "rejected"
       });
 
@@ -165,7 +165,7 @@ export default function MatchProposals() {
   };
 
   const handleCounterProposal = async () => {
-    if (!matchId || !selectedProposal || !counterTimezone || !counterDate || !counterTime) {
+    if (!debateId || !selectedProposal || !counterTimezone || !counterDate || !counterTime) {
       toast.error("Please fill out all required fields.");
       return;
     }
@@ -175,7 +175,7 @@ export default function MatchProposals() {
       const finalDate = new Date(counterDate);
       finalDate.setHours(hours, minutes, 0, 0);
 
-      const proposalRef = doc(db, "matches", matchId, "proposals", selectedProposal.id);
+      const proposalRef = doc(db, "debates", debateId, "proposals", selectedProposal.id);
       const proposalSnap = await getDoc(proposalRef);
       const currentData = proposalSnap.data() as Proposal;
       
@@ -204,11 +204,11 @@ export default function MatchProposals() {
 
       // Send notification to proposer
       await addDoc(collection(db, "notifications"), {
-        matchId,
+        debateId,
         hostId: selectedProposal.proposerId,
         senderId: auth.currentUser?.uid || null,
         senderName: auth.currentUser?.displayName || "Host",
-        message: "Host has counter-proposed a time for your match",
+        message: "Host has counter-proposed a time for your debate",
         read: false,
         createdAt: serverTimestamp(),
         type: "counter_proposal",
@@ -248,29 +248,29 @@ export default function MatchProposals() {
 
   const getContactMethodIcon = (method: string) => {
     switch (method) {
-      case "email": return "Email";
-      case "discord": return "Discord";
-      case "phone": return "Phone";
-      default: return "Contact";
+      case "email": return Mail;
+      case "discord": return MessageCircle;
+      case "phone": return Phone;
+      default: return MessageCircle;
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading proposals...</p>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground">Loading proposals...</p>
         </div>
       </div>
     );
   }
 
-  if (!match) {
+  if (!debate) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">Match not found</h1>
+          <h1 className="text-2xl font-bold text-foreground">Debate not found</h1>
           <Button onClick={() => navigate("/lobby")} className="mt-4">
             Back to Lobby
           </Button>
@@ -280,198 +280,248 @@ export default function MatchProposals() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-5xl mx-auto p-6 space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Match Proposals</h1>
-            <p className="text-muted-foreground">
-              {match.format} Match • {match.timeControl} • {match.difficulty}
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => navigate("/lobby")}>
-            Back to Lobby
-          </Button>
-        </div>
-
-        {/* Match Info Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Match Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Format</p>
-                <p className="text-lg font-semibold">{match.format}</p>
-              </div>
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Time Control</p>
-                <p className="text-lg font-semibold">{match.timeControl}</p>
-              </div>
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Difficulty</p>
-                <p className="text-lg font-semibold capitalize">{match.difficulty}</p>
-              </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => navigate("/lobby")}
+              className="h-9 w-9"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Debate Proposals</h1>
+              <p className="text-muted-foreground mt-1">
+                {debate.format} Debate
+                {debate.timeControl && ` • ${debate.timeControl}`}
+                {debate.difficulty && ` • ${debate.difficulty}`}
+              </p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <Badge variant="secondary" className="text-sm">
+            {proposals.length} {proposals.length === 1 ? 'Proposal' : 'Proposals'}
+          </Badge>
+        </div>
 
         {/* Proposals Section */}
-        <div>
-          <h2 className="text-2xl font-semibold text-foreground mb-4">
-            Proposals ({proposals.length})
-          </h2>
-          
-          {proposals.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No proposals received yet.</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Players can propose times to join your match.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {proposals.map((proposal) => (
-                <Card key={proposal.id} className="border-l-4 border-l-primary">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground">
-                          {proposal.proposerName}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          @{proposal.proposerUsername}
-                        </p>
-                      </div>
-                      <Badge 
-                        variant={
-                          proposal.status === "accepted" ? "default" :
-                          proposal.status === "rejected" ? "destructive" : "secondary"
-                        }
-                      >
-                        {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">Date:</span>
-                        <span className="font-medium">{formatDate(proposal.date)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">Timezone:</span>
-                        <span className="font-medium">{proposal.timezone}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="text-sm text-muted-foreground">Contact:</span>
-                      <span className="text-lg">{getContactMethodIcon(proposal.contactMethod)}</span>
-                      <span className="font-medium">{proposal.contactInfo}</span>
-                    </div>
-
-                    {proposal.notes && (
-                      <div className="mb-4 p-3 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground mb-1">Notes:</p>
-                        <p className="text-sm">{proposal.notes}</p>
-                      </div>
-                    )}
-
-                    {proposal.status === "pending" && (
-                      <div className="flex flex-col gap-2">
-                        <div className="flex gap-2">
-                          <Button 
-                            onClick={() => handleAcceptProposal(proposal)}
-                            className="flex-1"
-                          >
-                            Accept Proposal
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            onClick={() => handleRejectProposal(proposal)}
-                            className="flex-1"
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                        <Button 
-                          variant="secondary" 
-                          onClick={() => openCounterProposalDialog(proposal)}
-                          className="w-full"
-                        >
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Counter-Propose Time
-                        </Button>
-                      </div>
-                    )}
-
-                    {proposal.status === "countered" && proposal.counterProposal && (
-                      <div className="space-y-3">
-                        <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
-                          <p className="text-sm font-semibold text-primary mb-2">Host's Counter-Proposal</p>
-                          <div className="space-y-1 text-sm">
-                            <p><span className="text-muted-foreground">Date:</span> {formatDate(proposal.counterProposal.date)}</p>
-                            <p><span className="text-muted-foreground">Timezone:</span> {proposal.counterProposal.timezone}</p>
-                            {proposal.counterProposal.notes && (
-                              <p><span className="text-muted-foreground">Notes:</span> {proposal.counterProposal.notes}</p>
-                            )}
+        {proposals.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="p-12 text-center">
+              <MessageSquare className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">No proposals yet</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Players can propose times to join your debate. Proposals will appear here when received.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {/* Group proposals by status for better organization */}
+            {proposals
+              .sort((a, b) => {
+                // Sort: pending first, then countered, then accepted, then rejected
+                const order = { pending: 0, countered: 1, accepted: 2, rejected: 3 };
+                return (order[a.status] || 99) - (order[b.status] || 99);
+              })
+              .map((proposal) => {
+              const ContactIcon = getContactMethodIcon(proposal.contactMethod);
+              return (
+                <Card key={proposal.id} className="overflow-hidden">
+                  <CardContent className="p-0">
+                    {/* Status Bar */}
+                    <div className={`h-1 ${
+                      proposal.status === "accepted" ? "bg-green-500" :
+                      proposal.status === "rejected" ? "bg-red-500" :
+                      proposal.status === "countered" ? "bg-yellow-500" :
+                      "bg-primary"
+                    }`} />
+                    
+                    <div className="p-6 space-y-4">
+                      {/* Header */}
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                              <User className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-foreground">
+                                {proposal.proposerName}
+                              </h3>
+                              <p className="text-sm text-muted-foreground">
+                                @{proposal.proposerUsername}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <Badge 
+                          variant={
+                            proposal.status === "accepted" ? "default" :
+                            proposal.status === "rejected" ? "destructive" :
+                            proposal.status === "countered" ? "secondary" :
+                            "secondary"
+                          }
+                          className="capitalize"
+                        >
+                          {proposal.status === "countered" ? "Countered" : proposal.status}
+                        </Badge>
+                      </div>
+
+                      {/* Proposal Details */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Proposed Date</p>
+                            <p className="text-sm font-medium">{formatDate(proposal.date)}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Timezone</p>
+                            <p className="text-sm font-medium">{proposal.timezone}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 md:col-span-2">
+                          <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                            <ContactIcon className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Contact</p>
+                            <p className="text-sm font-medium">{proposal.contactInfo}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {proposal.notes && (
+                        <div className="p-3 bg-muted/50 rounded-lg border">
+                          <p className="text-xs text-muted-foreground mb-1">Notes</p>
+                          <p className="text-sm text-foreground">{proposal.notes}</p>
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      {proposal.status === "pending" && (
+                        <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
                           <Button 
                             onClick={() => handleAcceptProposal(proposal)}
                             className="flex-1"
+                            size="sm"
                           >
-                            Accept Counter-Proposal
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            Accept
+                          </Button>
+                          <Button 
+                            variant="secondary" 
+                            onClick={() => openCounterProposalDialog(proposal)}
+                            className="flex-1"
+                            size="sm"
+                          >
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Counter-Propose
                           </Button>
                           <Button 
                             variant="outline" 
                             onClick={() => handleRejectProposal(proposal)}
                             className="flex-1"
+                            size="sm"
                           >
+                            <XCircle className="h-4 w-4 mr-2" />
                             Reject
                           </Button>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {proposal.status === "accepted" && (
-                      <div className="text-center p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <p className="text-green-800 font-medium">Proposal Accepted</p>
-                        <p className="text-sm text-green-600">
-                          This player will join your match
-                        </p>
-                      </div>
-                    )}
+                      {proposal.status === "countered" && proposal.counterProposal && (
+                        <div className="space-y-3 pt-2 border-t">
+                          <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <RefreshCw className="h-4 w-4 text-primary" />
+                              <p className="text-sm font-semibold text-primary">Your Counter-Proposal</p>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">Date</p>
+                                <p className="font-medium">{formatDate(proposal.counterProposal.date)}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">Timezone</p>
+                                <p className="font-medium">{proposal.counterProposal.timezone}</p>
+                              </div>
+                              {proposal.counterProposal.notes && (
+                                <div className="md:col-span-2">
+                                  <p className="text-xs text-muted-foreground mb-1">Notes</p>
+                                  <p className="font-medium">{proposal.counterProposal.notes}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={() => handleAcceptProposal(proposal)}
+                              className="flex-1"
+                              size="sm"
+                            >
+                              <CheckCircle2 className="h-4 w-4 mr-2" />
+                              Accept Counter-Proposal
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              onClick={() => handleRejectProposal(proposal)}
+                              className="flex-1"
+                              size="sm"
+                            >
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      )}
 
-                    {proposal.status === "rejected" && (
-                      <div className="text-center p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-red-800 font-medium">Proposal Rejected</p>
-                      </div>
-                    )}
+                      {proposal.status === "accepted" && (
+                        <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                          <div>
+                            <p className="text-sm font-medium text-green-800 dark:text-green-200">Proposal Accepted</p>
+                            <p className="text-xs text-green-600 dark:text-green-400">
+                              This player will join your debate
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {proposal.status === "rejected" && (
+                        <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+                          <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                          <p className="text-sm font-medium text-red-800 dark:text-red-200">Proposal Rejected</p>
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Counter-Proposal Dialog */}
       <Dialog open={counterProposalOpen} onOpenChange={setCounterProposalOpen}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Counter-Propose Time</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Counter-Propose Time
+            </DialogTitle>
             <DialogDescription>
               Suggest a different time that works better for you. The proposer will be notified.
             </DialogDescription>

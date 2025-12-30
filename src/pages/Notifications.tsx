@@ -37,9 +37,9 @@ export default function NotificationsPage() {
       const proposalsData: Record<string, any[]> = {};
 
       for (const n of notifications) {
-        const proposalsRef = collection(doc(db, "matches", n.matchId), "proposals");
+        const proposalsRef = collection(doc(db, "debates", n.debateId), "proposals");
         const proposalsSnap = await getDocs(proposalsRef);
-        proposalsData[n.matchId] = proposalsSnap.docs.map((doc) => ({
+        proposalsData[n.debateId] = proposalsSnap.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
@@ -56,17 +56,17 @@ export default function NotificationsPage() {
     toast.success("Notification marked as read");
   };
 
-  const handleAccept = async (matchId: string, proposalId: string) => {
+  const handleAccept = async (debateId: string, proposalId: string) => {
     await updateDoc(
-      doc(db, "matches", matchId, "proposals", proposalId),
+      doc(db, "debates", debateId, "proposals", proposalId),
       { status: "accepted" }
     );
     toast.success("Proposal accepted");
   };
 
-  const handleDecline = async (matchId: string, proposalId: string) => {
+  const handleDecline = async (debateId: string, proposalId: string) => {
     await updateDoc(
-      doc(db, "matches", matchId, "proposals", proposalId),
+      doc(db, "debates", debateId, "proposals", proposalId),
       { status: "declined" }
     );
     toast.error("Proposal declined");
@@ -278,7 +278,7 @@ export default function NotificationsPage() {
                   </div>
 
                   {/* Proposal details */}
-                  {proposals[n.matchId]?.map((proposal) => (
+                  {proposals[n.debateId]?.map((proposal) => (
                     <div
                       key={proposal.id}
                       className="rounded-xl border border-border bg-card/80 backdrop-blur-sm shadow-lg p-5 transition hover:shadow-xl mt-3"
@@ -312,7 +312,7 @@ export default function NotificationsPage() {
                           <Button
                             size="sm"
                             className="bg-green-600 hover:bg-green-700 w-full"
-                            onClick={() => handleAccept(n.matchId, proposal.id)}
+                            onClick={() => handleAccept(n.debateId, proposal.id)}
                           >
                             Accept
                           </Button>
@@ -320,7 +320,7 @@ export default function NotificationsPage() {
                             size="sm"
                             variant="destructive"
                             className="w-full"
-                            onClick={() => handleDecline(n.matchId, proposal.id)}
+                            onClick={() => handleDecline(n.debateId, proposal.id)}
                           >
                             Decline
                           </Button>

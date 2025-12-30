@@ -10,8 +10,8 @@ import { Clock, Users, Trophy, Play } from "lucide-react";
 type ActiveGame = {
   id: string;
   format: "LD" | "PF";
-  timeControl: string;
-  difficulty: string;
+  timeControl?: string;
+  difficulty?: string;
   hostId: string;
   hostName?: string;
   hostUsername?: string;
@@ -34,7 +34,7 @@ export function ActiveGamesPanel() {
 
     // Listen to matches where current user is host or opponent
     const q = query(
-      collection(db, "matches"),
+      collection(db, "debates"),
       where("status", "in", ["ready", "active"])
     );
 
@@ -142,7 +142,7 @@ export function ActiveGamesPanel() {
                       {game.format} Match
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      {game.timeControl} • {game.difficulty}
+                      {[game.timeControl, game.difficulty].filter(Boolean).join(" • ") || "Match details"}
                     </p>
                   </div>
                   <Badge variant={getStatusColor(game)}>
