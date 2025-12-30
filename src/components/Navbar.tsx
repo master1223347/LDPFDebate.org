@@ -70,9 +70,7 @@ export const Navbar = () => {
           <h1 className="text-xl font-bold text-foreground">DebateTogether</h1>
         </Link>
 
-        <Link to="/building" className="text-sm text-foreground/70 hover:text-foreground">
-          Building
-        </Link>
+  {/* Building page link removed */}
       </div>
 
       <div className="flex items-center space-x-4">
