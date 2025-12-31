@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { auth, db, functions, httpsCallable } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { Play, Pause, RotateCcw, Mic, MicOff, Video, VideoOff, ChevronDown, ChevronUp, Copy, ExternalLink, Link2, Check } from "lucide-react";
 import { createGoogleMeet as createMeetUtil, formatMeetId, generateMeetingInstructions } from "@/lib/googleMeet";
@@ -55,6 +55,8 @@ export default function Debate() {
   const [prepTimerActive, setPrepTimerActive] = useState(false);
   const [showMeetInput, setShowMeetInput] = useState(false);
   const [meetLinkInput, setMeetLinkInput] = useState("");
+  const [firefliesBotStatus, setFirefliesBotStatus] = useState<"idle" | "inviting" | "active" | "error">("idle");
+  const [transcript, setTranscript] = useState("");
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -121,6 +123,18 @@ export default function Debate() {
         // Check if both players have joined
         const bothJoined = !!(data.opponentId && data.hostId);
         setDebateState(prev => ({ ...prev, bothPlayersJoined: bothJoined }));
+
+        // Update Fireflies bot status from Firestore
+        if (data.transcriptionStatus) {
+          if (data.transcriptionStatus === "active" || data.transcriptionStatus === "pending") {
+            setFirefliesBotStatus("active");
+          }
+        }
+
+        // Update transcript if available
+        if (data.transcript) {
+          setTranscript(data.transcript);
+        }
       }
     });
 
@@ -286,35 +300,43 @@ export default function Debate() {
   const createGoogleMeet = async () => {
     if (!isHost || !debateId) return;
     
-    try {
-      // Try to create meeting via Cloud Function (if available)
-      const createMeetFunction = httpsCallable(functions, 'createGoogleMeet');
-      const result = await createMeetFunction({
-        title: `${debateSettings?.format} Debate`,
-        startTime: new Date().toISOString(),
-        endTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour later
-      });
-      
-      const meetLink = (result.data as any)?.meetLink;
-      if (meetLink) {
-        setGoogleMeetUrl(meetLink);
-        await updateDoc(doc(db, "debates", debateId), {
-          googleMeetUrl: meetLink,
-          createdAt: serverTimestamp()
-        });
-        toast.success("Google Meet created successfully!");
-        return;
-      }
-    } catch (error: any) {
-      console.log("Cloud Function not available or failed, using manual method:", error);
-      // If function doesn't exist or fails, fall through to manual method
-    }
-    
     // Fallback: Open Google Meet in a new tab to create a meeting
     // User will get a meeting link they can share
     window.open('https://meet.google.com/new', '_blank', 'noopener,noreferrer');
     setShowMeetInput(true);
     toast.info("Create a meeting in the new tab, then paste the meeting link below");
+  };
+
+  const inviteFirefliesBot = async (meetUrl: string) => {
+    if (!debateId || !meetUrl) return;
+
+    try {
+      setFirefliesBotStatus("inviting");
+      const response = await fetch("/api/fireflies/invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          googleMeetUrl: meetUrl,
+          debateId: debateId,
+          meetingTitle: `${debateSettings?.format} Debate`
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to invite Fireflies bot");
+      }
+
+      const result = await response.json();
+      setFirefliesBotStatus("active");
+      toast.success("AI transcription bot invited!");
+      return result;
+    } catch (error: unknown) {
+      console.error("Error inviting Fireflies bot:", error);
+      setFirefliesBotStatus("error");
+      toast.error("Failed to invite transcription bot. You can still proceed with the debate.");
+    }
   };
 
   const saveMeetLink = async () => {
@@ -342,6 +364,9 @@ export default function Debate() {
       });
 
       toast.success("Google Meet link saved!");
+      
+      // After successfully saving the meet link, invite Fireflies bot
+      await inviteFirefliesBot(cleanUrl);
     } catch (error) {
       console.error("Error saving Google Meet link:", error);
       toast.error("Failed to save Google Meet link");
@@ -502,6 +527,27 @@ export default function Debate() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Fireflies Bot Status Indicator */}
+                    {firefliesBotStatus !== "idle" && (
+                      <div className="mt-2">
+                        {firefliesBotStatus === "inviting" && (
+                          <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+                            Inviting transcription bot...
+                          </Badge>
+                        )}
+                        {firefliesBotStatus === "active" && (
+                          <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                            ✓ Transcription bot active
+                          </Badge>
+                        )}
+                        {firefliesBotStatus === "error" && (
+                          <Badge variant="destructive">
+                            Transcription bot unavailable
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                     
                     {/* Collapsible Meeting Details */}
                     <div className="border rounded-lg">
@@ -791,7 +837,26 @@ export default function Debate() {
                   </div>
                 </CardContent>
               )}
-            </Card>            
+            </Card>
+
+            {/* Live Transcript Section */}
+            {transcript && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Live Transcript</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="max-h-64 overflow-y-auto p-4 bg-muted rounded-lg">
+                    <p className="text-sm whitespace-pre-wrap text-foreground">
+                      {transcript}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Transcript updates automatically as the debate progresses
+                  </p>
+                </CardContent>
+              </Card>
+            )}            
           </div>
         </div>
       </div>
