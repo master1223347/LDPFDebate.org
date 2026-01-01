@@ -149,7 +149,7 @@ export default function Lobby() {
                     <Button
                       variant="outline"
                       className="flex-1"
-                      onClick={() => navigate(`/debate/${debate.id}`)}
+                      onClick={() => navigate(`/live-match/${debate.id}`)}
                     >
                       View Details
                     </Button>
@@ -197,7 +197,7 @@ export default function Lobby() {
                     <Button
                       variant="outline"
                       className="flex-1"
-                      onClick={() => navigate(`/debate/${debate.id}`)}
+                      onClick={() => navigate(`/live-match/${debate.id}`)}
                     >
                       View Details
                     </Button>

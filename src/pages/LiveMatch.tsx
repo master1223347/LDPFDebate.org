@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { 
   Users, 
@@ -16,7 +17,9 @@ import {
   MessageSquare,
   ExternalLink,
   ArrowLeft,
-  Loader2
+  Loader2,
+  Bot,
+  X
 } from "lucide-react";
 
 type Debate = {
@@ -46,6 +49,9 @@ export default function LiveMatch() {
   const [loading, setLoading] = useState(true);
   const [hostData, setHostData] = useState<any>(null);
   const [opponentData, setOpponentData] = useState<any>(null);
+  const [judgmentLoading, setJudgmentLoading] = useState(false);
+  const [judgmentResult, setJudgmentResult] = useState<string | null>(null);
+  const [judgmentModalOpen, setJudgmentModalOpen] = useState(false);
 
   useEffect(() => {
     if (!debateId) {
@@ -131,6 +137,42 @@ export default function LiveMatch() {
 
   const isParticipant = auth.currentUser?.uid === debate.hostId || auth.currentUser?.uid === debate.opponentId;
   const isHost = auth.currentUser?.uid === debate.hostId;
+
+  const handleGetAIJudgment = async () => {
+    if (!debateId || !auth.currentUser) {
+      toast.error("You must be logged in to get AI judgment");
+      return;
+    }
+
+    setJudgmentLoading(true);
+    try {
+      const response = await fetch('/api/ai-judge/judge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          debateId,
+          userId: auth.currentUser.uid,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get AI judgment');
+      }
+
+      setJudgmentResult(data.judgment);
+      setJudgmentModalOpen(true);
+      toast.success("AI judgment generated successfully!");
+    } catch (error: any) {
+      console.error('Error getting AI judgment:', error);
+      toast.error(error.message || "Failed to get AI judgment. Make sure you've set up your API key in your profile.");
+    } finally {
+      setJudgmentLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -335,6 +377,26 @@ export default function LiveMatch() {
                     Join Video Call
                   </Button>
                 )}
+                {debate.status === "completed" && isParticipant && (
+                  <Button 
+                    variant="default" 
+                    className="w-full"
+                    onClick={handleGetAIJudgment}
+                    disabled={judgmentLoading}
+                  >
+                    {judgmentLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating Judgment...
+                      </>
+                    ) : (
+                      <>
+                        <Bot className="h-4 w-4 mr-2" />
+                        Get AI Judge Decision
+                      </>
+                    )}
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
@@ -369,6 +431,28 @@ export default function LiveMatch() {
           </div>
         </div>
       </div>
+
+      {/* AI Judgment Modal */}
+      <Dialog open={judgmentModalOpen} onOpenChange={setJudgmentModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5" />
+              AI Judge Decision
+            </DialogTitle>
+            <DialogDescription>
+              AI-powered judgment for this {debate?.format} debate
+            </DialogDescription>
+          </DialogHeader>
+          {judgmentResult && (
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <div className="whitespace-pre-wrap text-foreground bg-muted/30 p-6 rounded-lg">
+                {judgmentResult}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

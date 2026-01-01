@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PrepareAIJudgeModal } from "@/components/ui/PrepareAIJudgeModal";
 import { 
   Trophy, 
   TrendingUp, 
@@ -16,13 +17,16 @@ import {
   Target,
   Clock,
   Medal,
-  BarChart3
+  BarChart3,
+  Bot,
+  Key
 } from "lucide-react";
 
 const Profile = () => {
   const [selectedFormat, setSelectedFormat] = useState("LD");
   const [profileData, setProfileData] = useState<any | null>(null);
   const [uid, setUid] = useState<string | null>(null);
+  const [aiJudgeModalOpen, setAIJudgeModalOpen] = useState(false);
 
 
   const recentMatches = [
@@ -106,7 +110,14 @@ const Profile = () => {
                       <h1 className="text-3xl font-bold text-foreground">{fullName}</h1>
                       <p className="text-muted-foreground">{username}</p>
                     </div>
-            
+                    <Button
+                      onClick={() => setAIJudgeModalOpen(true)}
+                      variant="outline"
+                      className="mt-4 md:mt-0"
+                    >
+                      <Bot className="h-4 w-4 mr-2" />
+                      Prepare AI Judge
+                    </Button>
                   </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -298,6 +309,11 @@ const Profile = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <PrepareAIJudgeModal 
+        open={aiJudgeModalOpen} 
+        onClose={() => setAIJudgeModalOpen(false)} 
+      />
     </div>
   );
 };

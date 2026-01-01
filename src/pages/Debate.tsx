@@ -14,16 +14,18 @@ import { Play, Pause, RotateCcw, Mic, MicOff, Video, VideoOff, ChevronDown, Chev
 import { createGoogleMeet as createMeetUtil, formatMeetId, generateMeetingInstructions } from "@/lib/googleMeet";
 import { createAdvancedMeetUrl, generateMeetingInvitation, createQRCodeUrl, formatMeetingId } from "@/lib/googleMeetConfig";
 
-type DebatePhase = "prep" | "speech1" | "cross1" | "speech2" | "cross2" | "rebuttal1" | "rebuttal2" | "summary1" | "summary2";
+// LD Phases
+type LDPhase = "prep" | "ac1" | "cx1" | "nc1" | "cx2" | "ar1" | "nr2" | "ar2";
+
+// PF Phases
+type PFPhase = "prep" | "ac" | "nc" | "cx1" | "ar" | "nr" | "cx2" | "as" | "ns" | "gcx" | "aff" | "nff";
+
+type DebatePhase = LDPhase | PFPhase;
 
 interface DebateSettings {
   format: "LD" | "PF" | "AOTB";
   timeControl?: string;
   prepTime: number;
-  speechTime: number;
-  crossTime: number;
-  rebuttalTime: number;
-  summaryTime: number;
 }
 
 interface DebateState {
@@ -40,7 +42,7 @@ export default function Debate() {
   const navigate = useNavigate();
   const [debateSettings, setDebateSettings] = useState<DebateSettings | null>(null);
   const [debateState, setDebateState] = useState<DebateState>({
-    currentPhase: "speech1",
+    currentPhase: "ac1", // Default to LD first phase, will be set based on format
     timeRemaining: 0,
     isActive: false,
     currentSpeaker: null,
@@ -57,6 +59,12 @@ export default function Debate() {
   const [meetLinkInput, setMeetLinkInput] = useState("");
   const [firefliesBotStatus, setFirefliesBotStatus] = useState<"idle" | "inviting" | "active" | "error">("idle");
   const [transcript, setTranscript] = useState("");
+  const [hostReady, setHostReady] = useState(false);
+  const [opponentReady, setOpponentReady] = useState(false);
+  const [debateStatus, setDebateStatus] = useState<"waiting" | "ready" | "active" | "completed">("waiting");
+  const [hostMarkedComplete, setHostMarkedComplete] = useState(false);
+  const [opponentMarkedComplete, setOpponentMarkedComplete] = useState(false);
+  const [allPhasesComplete, setAllPhasesComplete] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -88,41 +96,51 @@ export default function Debate() {
           setDebateSettings({
             format: "LD",
             timeControl: data.timeControl,
-            prepTime: 4 * 60, // 4 minutes
-            speechTime: 6 * 60, // 6 minutes
-            crossTime: 3 * 60, // 3 minutes
-            rebuttalTime: 4 * 60, // 4 minutes
-            summaryTime: 2 * 60 // 2 minutes
+            prepTime: 4 * 60, // 4 minutes prep time
           });
-          setDebateState(prev => ({ ...prev, prepTimeRemaining: 4 * 60 }));
+          setDebateState(prev => ({ ...prev, prepTimeRemaining: 4 * 60, currentPhase: "ac1" }));
         } else if (data.format === "PF") {
           setDebateSettings({
             format: "PF",
             timeControl: data.timeControl,
-            prepTime: 2 * 60, // 2 minutes
-            speechTime: 4 * 60, // 4 minutes
-            crossTime: 3 * 60, // 3 minutes
-            rebuttalTime: 4 * 60, // 4 minutes
-            summaryTime: 2 * 60 // 2 minutes
+            prepTime: 3 * 60, // 3 minutes prep time
           });
-          setDebateState(prev => ({ ...prev, prepTimeRemaining: 2 * 60 }));
+          setDebateState(prev => ({ ...prev, prepTimeRemaining: 3 * 60, currentPhase: "ac" }));
         } else if (data.format === "AOTB") {
-          // AOTB format - similar to LD but with different structure
+          // AOTB format - similar to LD
           setDebateSettings({
             format: "AOTB",
             timeControl: data.timeControl,
-            prepTime: 4 * 60, // 4 minutes
-            speechTime: 6 * 60, // 6 minutes
-            crossTime: 3 * 60, // 3 minutes
-            rebuttalTime: 4 * 60, // 4 minutes
-            summaryTime: 2 * 60 // 2 minutes
+            prepTime: 4 * 60, // 4 minutes prep time
           });
-          setDebateState(prev => ({ ...prev, prepTimeRemaining: 4 * 60 }));
+          setDebateState(prev => ({ ...prev, prepTimeRemaining: 4 * 60, currentPhase: "ac1" }));
         }
 
         // Check if both players have joined
         const bothJoined = !!(data.opponentId && data.hostId);
         setDebateState(prev => ({ ...prev, bothPlayersJoined: bothJoined }));
+
+        // Update debate status
+        if (data.status) {
+          setDebateStatus(data.status as "waiting" | "ready" | "active" | "completed");
+        }
+
+        // Update ready status for both players
+        setHostReady(data.hostReady === true);
+        setOpponentReady(data.opponentReady === true);
+
+        // Update complete status for both players
+        setHostMarkedComplete(data.hostMarkedComplete === true);
+        setOpponentMarkedComplete(data.opponentMarkedComplete === true);
+
+        // Check if all phases are complete (all phases have been run through)
+        const phases = data.format === "LD" 
+          ? ["ac1", "cx1", "nc1", "cx2", "ar1", "nr2", "ar2"]
+          : ["ac", "nc", "cx1", "ar", "nr", "cx2", "as", "ns", "gcx", "aff", "nff"];
+        const lastPhase = phases[phases.length - 1];
+        const isLastPhase = data.currentPhase === lastPhase;
+        const hasCompletedLastPhase = data.allPhasesComplete === true || (isLastPhase && data.status === "active");
+        setAllPhasesComplete(hasCompletedLastPhase);
 
         // Update Fireflies bot status from Firestore
         if (data.transcriptionStatus) {
@@ -185,17 +203,31 @@ export default function Debate() {
     };
   }, [prepTimerActive, debateState.prepTimeRemaining]);
 
+  const getLDPhases = (): LDPhase[] => {
+    return ["ac1", "cx1", "nc1", "cx2", "ar1", "nr2", "ar2"];
+  };
+
+  const getPFPhases = (): PFPhase[] => {
+    return ["ac", "nc", "cx1", "ar", "nr", "cx2", "as", "ns", "gcx", "aff", "nff"];
+  };
+
   const handlePhaseComplete = () => {
-    // Logic to move to next phase
-    const phases: DebatePhase[] = ["speech1", "cross1", "speech2", "cross2", "rebuttal1", "rebuttal2", "summary1", "summary2"];
-    const currentIndex = phases.indexOf(debateState.currentPhase);
+    if (!debateSettings) return;
+    
+    const phases = debateSettings.format === "LD" 
+      ? getLDPhases() 
+      : debateSettings.format === "PF"
+      ? getPFPhases()
+      : getLDPhases(); // Default to LD for AOTB
+    
+    const currentIndex = phases.indexOf(debateState.currentPhase as any);
     
     if (currentIndex < phases.length - 1) {
       const nextPhase = phases[currentIndex + 1];
       setDebateState(prev => ({
         ...prev,
-        currentPhase: nextPhase,
-        timeRemaining: getTimeForPhase(nextPhase),
+        currentPhase: nextPhase as DebatePhase,
+        timeRemaining: getTimeForPhase(nextPhase as DebatePhase),
         isActive: false
       }));
       
@@ -204,48 +236,115 @@ export default function Debate() {
         audioRef.current.play().catch(console.error);
       }
       
-      toast.info(`Phase complete! Moving to ${getPhaseDisplayName(nextPhase)}`);
+      toast.info(`Phase complete! Moving to ${getPhaseDisplayName(nextPhase as DebatePhase)}`);
+      
+      // Update current phase in Firestore
+      if (debateId) {
+        updateDoc(doc(db, "debates", debateId), {
+          currentPhase: nextPhase,
+        }).catch(console.error);
+      }
     } else {
-      // Debate complete
-      toast.success("Debate complete!");
+      // All phases complete - mark as ready for completion
+      toast.success("All phases complete! Both players can now mark the debate as complete.");
       setDebateState(prev => ({ ...prev, isActive: false }));
+      setAllPhasesComplete(true);
+      
+      // Update Firestore to mark all phases as complete
+      if (debateId) {
+        updateDoc(doc(db, "debates", debateId), {
+          allPhasesComplete: true,
+        }).catch(console.error);
+      }
     }
   };
 
   const getTimeForPhase = (phase: DebatePhase): number => {
     if (!debateSettings) return 0;
     
-    switch (phase) {
-      case "speech1":
-      case "speech2": return debateSettings.speechTime;
-      case "cross1":
-      case "cross2": return debateSettings.crossTime;
-      case "rebuttal1":
-      case "rebuttal2": return debateSettings.rebuttalTime;
-      case "summary1":
-      case "summary2": return debateSettings.summaryTime;
-      default: return 0;
+    if (debateSettings.format === "LD") {
+      // LD Format timings (in seconds)
+      switch (phase as LDPhase) {
+        case "ac1": return 6 * 60; // 6 minutes - Affirmative Constructive (1AC)
+        case "cx1": return 3 * 60; // 3 minutes - Cross-Examination of Affirmative
+        case "nc1": return 7 * 60; // 7 minutes - Negative Constructive (1NC)
+        case "cx2": return 3 * 60; // 3 minutes - Cross-Examination of Negative
+        case "ar1": return 4 * 60; // 4 minutes - First Affirmative Rebuttal (1AR)
+        case "nr2": return 6 * 60; // 6 minutes - Negative Rebuttal (2NR)
+        case "ar2": return 3 * 60; // 3 minutes - Second Affirmative Rebuttal (2AR)
+        default: return 0;
+      }
+    } else if (debateSettings.format === "PF") {
+      // PF Format timings (in seconds)
+      switch (phase as PFPhase) {
+        case "ac": return 4 * 60; // 4 minutes - Affirmative Constructive
+        case "nc": return 4 * 60; // 4 minutes - Negative Constructive
+        case "cx1": return 3 * 60; // 3 minutes - First Crossfire
+        case "ar": return 4 * 60; // 4 minutes - Affirmative Rebuttal
+        case "nr": return 4 * 60; // 4 minutes - Negative Rebuttal
+        case "cx2": return 3 * 60; // 3 minutes - Second Crossfire
+        case "as": return 3 * 60; // 3 minutes - Affirmative Summary
+        case "ns": return 3 * 60; // 3 minutes - Negative Summary
+        case "gcx": return 3 * 60; // 3 minutes - Grand Crossfire
+        case "aff": return 2 * 60; // 2 minutes - Affirmative Final Focus
+        case "nff": return 2 * 60; // 2 minutes - Negative Final Focus
+        default: return 0;
+      }
+    } else {
+      // AOTB - use LD timings
+      switch (phase as LDPhase) {
+        case "ac1": return 6 * 60;
+        case "cx1": return 3 * 60;
+        case "nc1": return 7 * 60;
+        case "cx2": return 3 * 60;
+        case "ar1": return 4 * 60;
+        case "nr2": return 6 * 60;
+        case "ar2": return 3 * 60;
+        default: return 0;
+      }
     }
   };
 
   const getPhaseDisplayName = (phase: DebatePhase): string => {
-    switch (phase) {
-      case "prep": return "Preparation Time";
-      case "speech1": return "First Affirmative Speech";
-      case "cross1": return "First Cross-Examination";
-      case "speech2": return "First Negative Speech";
-      case "cross2": return "Second Cross-Examination";
-      case "rebuttal1": return "First Rebuttal";
-      case "rebuttal2": return "Second Rebuttal";
-      case "summary1": return "First Summary";
-      case "summary2": return "Second Summary";
-      default: return "Unknown Phase";
+    if (!debateSettings) return "Unknown Phase";
+    
+    if (debateSettings.format === "LD" || debateSettings.format === "AOTB") {
+      switch (phase as LDPhase) {
+        case "prep": return "Preparation Time";
+        case "ac1": return "Affirmative Constructive (1AC)";
+        case "cx1": return "Cross-Examination of Affirmative";
+        case "nc1": return "Negative Constructive (1NC)";
+        case "cx2": return "Cross-Examination of Negative";
+        case "ar1": return "First Affirmative Rebuttal (1AR)";
+        case "nr2": return "Negative Rebuttal (2NR)";
+        case "ar2": return "Second Affirmative Rebuttal (2AR)";
+        default: return "Unknown Phase";
+      }
+    } else if (debateSettings.format === "PF") {
+      switch (phase as PFPhase) {
+        case "prep": return "Preparation Time";
+        case "ac": return "Affirmative Constructive";
+        case "nc": return "Negative Constructive";
+        case "cx1": return "First Crossfire";
+        case "ar": return "Affirmative Rebuttal";
+        case "nr": return "Negative Rebuttal";
+        case "cx2": return "Second Crossfire";
+        case "as": return "Affirmative Summary";
+        case "ns": return "Negative Summary";
+        case "gcx": return "Grand Crossfire";
+        case "aff": return "Affirmative Final Focus";
+        case "nff": return "Negative Final Focus";
+        default: return "Unknown Phase";
+      }
     }
+    
+    return "Unknown Phase";
   };
 
   const startTimer = () => {
     if (debateState.timeRemaining === 0) {
-      setDebateState(prev => ({ ...prev, timeRemaining: getTimeForPhase(prev.currentPhase) }));
+      const timeForPhase = getTimeForPhase(debateState.currentPhase);
+      setDebateState(prev => ({ ...prev, timeRemaining: timeForPhase }));
     }
     setDebateState(prev => ({ ...prev, isActive: true }));
   };
@@ -255,9 +354,10 @@ export default function Debate() {
   };
 
   const resetTimer = () => {
+    const timeForPhase = getTimeForPhase(debateState.currentPhase);
     setDebateState(prev => ({ 
       ...prev, 
-      timeRemaining: getTimeForPhase(prev.currentPhase),
+      timeRemaining: timeForPhase,
       isActive: false 
     }));
   };
@@ -399,42 +499,170 @@ export default function Debate() {
   };
 
   const startDebate = async () => {
-    if (!isHost) return;
-    
-    // Check if both players have joined
-    if (!debateState.bothPlayersJoined) {
+    if (!debateId || !debateState.bothPlayersJoined) {
       toast.error("Both players must join the debate before starting");
       return;
     }
     
+    if (debateStatus !== "ready") {
+      toast.error("Debate is not ready to start");
+      return;
+    }
+    
     try {
-      // Update match status to active
-      await updateDoc(doc(db, "debates", debateId!), {
-        status: "active",
-        startedAt: serverTimestamp()
-      });
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      // Get current debate data to check roles
+      const debateDoc = await getDoc(doc(db, "debates", debateId));
+      if (!debateDoc.exists()) return;
       
-      toast.success("Debate started!");
+      const debateData = debateDoc.data();
+      const isUserHost = debateData.hostId === currentUser.uid;
+      
+      // Mark the current player as ready
+      const updateData: any = {};
+      if (isUserHost) {
+        updateData.hostReady = true;
+      } else {
+        updateData.opponentReady = true;
+      }
+
+      // Check if both players are ready (combine current state with what we're about to set)
+      const hostReadyNow = isUserHost ? true : (debateData.hostReady === true);
+      const opponentReadyNow = isUserHost ? (debateData.opponentReady === true) : true;
+
+      // If both players are ready, start the debate
+      if (hostReadyNow && opponentReadyNow) {
+        updateData.status = "active";
+        updateData.startedAt = serverTimestamp();
+        await updateDoc(doc(db, "debates", debateId), updateData);
+        toast.success("Debate started!");
+      } else {
+        // Just mark this player as ready
+        await updateDoc(doc(db, "debates", debateId), updateData);
+        toast.success("You're ready! Waiting for the other player...");
+      }
     } catch (error) {
       console.error("Error starting debate:", error);
-      toast.error("Failed to start debate");
+      toast.error("Failed to mark as ready");
+    }
+  };
+
+  const unreadyDebate = async () => {
+    if (!debateId || debateStatus !== "ready") {
+      return;
+    }
+    
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      // Get current debate data to check roles
+      const debateDoc = await getDoc(doc(db, "debates", debateId));
+      if (!debateDoc.exists()) return;
+      
+      const debateData = debateDoc.data();
+      const isUserHost = debateData.hostId === currentUser.uid;
+      
+      // Mark the current player as not ready
+      const updateData: any = {};
+      if (isUserHost) {
+        updateData.hostReady = false;
+      } else {
+        updateData.opponentReady = false;
+      }
+
+      await updateDoc(doc(db, "debates", debateId), updateData);
+      toast.info("You're no longer ready");
+    } catch (error) {
+      console.error("Error unreadying:", error);
+      toast.error("Failed to unready");
+    }
+  };
+
+  const markDebateComplete = async () => {
+    if (!debateId || debateStatus !== "active" || !allPhasesComplete) {
+      toast.error("Debate is not ready to be marked as complete");
+      return;
+    }
+    
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      // Get current debate data to check roles
+      const debateDoc = await getDoc(doc(db, "debates", debateId));
+      if (!debateDoc.exists()) return;
+      
+      const debateData = debateDoc.data();
+      const isUserHost = debateData.hostId === currentUser.uid;
+      
+      // Mark the current player as having marked complete
+      const updateData: any = {};
+      if (isUserHost) {
+        updateData.hostMarkedComplete = true;
+      } else {
+        updateData.opponentMarkedComplete = true;
+      }
+
+      // Check if both players have marked complete
+      const hostMarkedCompleteNow = isUserHost ? true : (debateData.hostMarkedComplete === true);
+      const opponentMarkedCompleteNow = isUserHost ? (debateData.opponentMarkedComplete === true) : true;
+
+      // If both players have marked complete, set status to completed
+      if (hostMarkedCompleteNow && opponentMarkedCompleteNow) {
+        updateData.status = "completed";
+        updateData.completedAt = serverTimestamp();
+        await updateDoc(doc(db, "debates", debateId), updateData);
+        toast.success("Debate marked as completed!");
+      } else {
+        // Just mark this player as complete
+        await updateDoc(doc(db, "debates", debateId), updateData);
+        toast.success("You've marked the debate as complete. Waiting for the other player...");
+      }
+    } catch (error) {
+      console.error("Error marking debate complete:", error);
+      toast.error("Failed to mark debate as complete");
+    }
+  };
+
+  const unmarkDebateComplete = async () => {
+    if (!debateId || debateStatus === "completed") {
+      return;
+    }
+    
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      // Get current debate data to check roles
+      const debateDoc = await getDoc(doc(db, "debates", debateId));
+      if (!debateDoc.exists()) return;
+      
+      const debateData = debateDoc.data();
+      const isUserHost = debateData.hostId === currentUser.uid;
+      
+      // Mark the current player as not complete
+      const updateData: any = {};
+      if (isUserHost) {
+        updateData.hostMarkedComplete = false;
+      } else {
+        updateData.opponentMarkedComplete = false;
+      }
+
+      await updateDoc(doc(db, "debates", debateId), updateData);
+      toast.info("You've unmarked the debate as complete");
+    } catch (error) {
+      console.error("Error unmarking debate complete:", error);
+      toast.error("Failed to unmark debate as complete");
     }
   };
 
   const joinDebate = async () => {
-    try {
-      // Update match status to active if not already
-      if (debateSettings && debateId) {
-        await updateDoc(doc(db, "debates", debateId), {
-          status: "active",
-          joinedAt: serverTimestamp()
-        });
-        toast.success("Joined debate!");
-      }
-    } catch (error) {
-      console.error("Error joining debate:", error);
-      toast.error("Failed to join debate");
-    }
+    // This function is no longer needed - joining is just navigating to the page
+    // The actual "ready" status is set by startDebate()
+    toast.info("You're now in the debate room. Click 'Start Debate' when ready!");
   };
 
   return (
@@ -548,6 +776,83 @@ export default function Debate() {
                         )}
                       </div>
                     )}
+
+                    {/* Start Debate Button - shown when status is ready and both players joined */}
+                    {debateStatus === "ready" && debateState.bothPlayersJoined && (
+                      <div className="mt-4 pt-4 border-t border-border space-y-2">
+                        {isHost ? (
+                          <>
+                            <div className="flex gap-2">
+                              {hostReady ? (
+                                <>
+                                  <Button 
+                                    onClick={unreadyDebate} 
+                                    variant="outline" 
+                                    className="flex-1"
+                                  >
+                                    Unready
+                                  </Button>
+                                  <Button 
+                                    variant="default" 
+                                    className="flex-1"
+                                    disabled
+                                  >
+                                    You're Ready
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button 
+                                  onClick={startDebate} 
+                                  variant="default" 
+                                  className="w-full"
+                                >
+                                  Start Debate
+                                </Button>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-1 text-center">
+                              <p>Host: {hostReady ? "✓ Ready" : "Not ready"}</p>
+                              <p>Opponent: {opponentReady ? "✓ Ready" : "Not ready"}</p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex gap-2">
+                              {opponentReady ? (
+                                <>
+                                  <Button 
+                                    onClick={unreadyDebate} 
+                                    variant="outline" 
+                                    className="flex-1"
+                                  >
+                                    Unready
+                                  </Button>
+                                  <Button 
+                                    variant="default" 
+                                    className="flex-1"
+                                    disabled
+                                  >
+                                    You're Ready
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button 
+                                  onClick={startDebate} 
+                                  variant="default" 
+                                  className="w-full"
+                                >
+                                  Start Debate
+                                </Button>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-1 text-center">
+                              <p>Host: {hostReady ? "✓ Ready" : "Not ready"}</p>
+                              <p>Opponent: {opponentReady ? "✓ Ready" : "Not ready"}</p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                     
                     {/* Collapsible Meeting Details */}
                     <div className="border rounded-lg">
@@ -644,14 +949,42 @@ export default function Debate() {
                         <p className="text-xs text-muted-foreground text-center">
                           This will open Google Meet in a new tab. Create a meeting and paste the link.
                         </p>
-                        <Button 
-                          onClick={startDebate} 
-                          variant="default" 
-                          className="w-full"
-                          disabled={!debateState.bothPlayersJoined}
-                        >
-                          {debateState.bothPlayersJoined ? "Start Debate" : "Waiting for Opponent"}
-                        </Button>
+                        {debateStatus === "ready" && debateState.bothPlayersJoined && (
+                          <>
+                            <div className="flex gap-2">
+                              {hostReady ? (
+                                <>
+                                  <Button 
+                                    onClick={unreadyDebate} 
+                                    variant="outline" 
+                                    className="flex-1"
+                                  >
+                                    Unready
+                                  </Button>
+                                  <Button 
+                                    variant="default" 
+                                    className="flex-1"
+                                    disabled
+                                  >
+                                    You're Ready
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button 
+                                  onClick={startDebate} 
+                                  variant="default" 
+                                  className="w-full"
+                                >
+                                  Start Debate
+                                </Button>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              <p>Host: {hostReady ? "✓ Ready" : "Not ready"}</p>
+                              <p>Opponent: {opponentReady ? "✓ Ready" : "Not ready"}</p>
+                            </div>
+                          </>
+                        )}
                         {!debateState.bothPlayersJoined && (
                           <p className="text-xs text-muted-foreground text-center">
                             Both players must join before starting
@@ -660,12 +993,47 @@ export default function Debate() {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <Button onClick={joinDebate} variant="default" className="w-full">
-                          Join Debate
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                              Waiting for host to add meeting link
-                        </p>
+                        {debateStatus === "ready" && debateState.bothPlayersJoined && (
+                          <>
+                            <div className="flex gap-2">
+                              {opponentReady ? (
+                                <>
+                                  <Button 
+                                    onClick={unreadyDebate} 
+                                    variant="outline" 
+                                    className="flex-1"
+                                  >
+                                    Unready
+                                  </Button>
+                                  <Button 
+                                    variant="default" 
+                                    className="flex-1"
+                                    disabled
+                                  >
+                                    You're Ready
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button 
+                                  onClick={startDebate} 
+                                  variant="default" 
+                                  className="w-full"
+                                >
+                                  Start Debate
+                                </Button>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              <p>Host: {hostReady ? "✓ Ready" : "Not ready"}</p>
+                              <p>Opponent: {opponentReady ? "✓ Ready" : "Not ready"}</p>
+                            </div>
+                          </>
+                        )}
+                        {(!debateState.bothPlayersJoined || debateStatus !== "ready") && (
+                          <p className="text-xs text-muted-foreground">
+                            Waiting for host to add meeting link and both players to join
+                          </p>
+                        )}
                           </div>
                         )}
                       </div>
@@ -817,20 +1185,23 @@ export default function Debate() {
               {!isStructureCollapsed && (
                 <CardContent>
                   <div className="space-y-3">
-                    {(["speech1", "cross1", "speech2", "cross2", "rebuttal1", "rebuttal2", "summary1", "summary2"] as DebatePhase[]).map((phase) => (
+                    {debateSettings && (debateSettings.format === "LD" || debateSettings.format === "AOTB"
+                      ? getLDPhases()
+                      : getPFPhases()
+                    ).map((phase) => (
                       <div key={phase} className="flex items-center justify-between">
                         <span className={`text-sm ${
                           debateState.currentPhase === phase 
                             ? "text-foreground font-medium" 
                             : "text-muted-foreground"
                         }`}>
-                          {getPhaseDisplayName(phase)}
+                          {getPhaseDisplayName(phase as DebatePhase)}
                         </span>
                         <Badge 
                           variant={debateState.currentPhase === phase ? "default" : "outline"}
                           className="text-xs"
                         >
-                          {formatTime(getTimeForPhase(phase))}
+                          {formatTime(getTimeForPhase(phase as DebatePhase))}
                         </Badge>
                       </div>
                     ))}
