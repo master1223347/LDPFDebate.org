@@ -10,7 +10,10 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
-import { Play, Pause, RotateCcw, Mic, MicOff, Video, VideoOff, ChevronDown, ChevronUp, Copy, ExternalLink, Link2, Check } from "lucide-react";
+import { Play, Pause, RotateCcw, Mic, MicOff, Video, VideoOff, ChevronDown, ChevronUp, Copy, ExternalLink, Link2, Check, CheckCircle, Trophy } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { updateRatingsTransaction } from "@/lib/ratings";
 import { createGoogleMeet as createMeetUtil, formatMeetId, generateMeetingInstructions } from "@/lib/googleMeet";
 import { createAdvancedMeetUrl, generateMeetingInvitation, createQRCodeUrl, formatMeetingId } from "@/lib/googleMeetConfig";
 
@@ -65,6 +68,12 @@ export default function Debate() {
   const [hostMarkedComplete, setHostMarkedComplete] = useState(false);
   const [opponentMarkedComplete, setOpponentMarkedComplete] = useState(false);
   const [allPhasesComplete, setAllPhasesComplete] = useState(false);
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [selectedWinner, setSelectedWinner] = useState<"host" | "opponent" | "tie" | "">("");
+  const [hostWinnerSelection, setHostWinnerSelection] = useState<"host" | "opponent" | "tie" | null>(null);
+  const [opponentWinnerSelection, setOpponentWinnerSelection] = useState<"host" | "opponent" | "tie" | null>(null);
+  const [hostName, setHostName] = useState("");
+  const [opponentName, setOpponentName] = useState("");
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -120,6 +129,10 @@ export default function Debate() {
         const bothJoined = !!(data.opponentId && data.hostId);
         setDebateState(prev => ({ ...prev, bothPlayersJoined: bothJoined }));
 
+        // Store player names for winner selection
+        setHostName(data.hostUsername || data.hostName || "Host");
+        setOpponentName(data.opponentUsername || data.opponentName || "Opponent");
+
         // Update debate status
         if (data.status) {
           setDebateStatus(data.status as "waiting" | "ready" | "active" | "completed");
@@ -133,14 +146,12 @@ export default function Debate() {
         setHostMarkedComplete(data.hostMarkedComplete === true);
         setOpponentMarkedComplete(data.opponentMarkedComplete === true);
 
-        // Check if all phases are complete (all phases have been run through)
-        const phases = data.format === "LD" 
-          ? ["ac1", "cx1", "nc1", "cx2", "ar1", "nr2", "ar2"]
-          : ["ac", "nc", "cx1", "ar", "nr", "cx2", "as", "ns", "gcx", "aff", "nff"];
-        const lastPhase = phases[phases.length - 1];
-        const isLastPhase = data.currentPhase === lastPhase;
-        const hasCompletedLastPhase = data.allPhasesComplete === true || (isLastPhase && data.status === "active");
-        setAllPhasesComplete(hasCompletedLastPhase);
+        // Update winner selections
+        setHostWinnerSelection(data.hostWinnerSelection || null);
+        setOpponentWinnerSelection(data.opponentWinnerSelection || null);
+
+        // Check if all phases are complete
+        setAllPhasesComplete(data.allPhasesComplete === true);
 
         // Update Fireflies bot status from Firestore
         if (data.transcriptionStatus) {
@@ -581,9 +592,17 @@ export default function Debate() {
     }
   };
 
+  const handleOpenCompleteDialog = () => {
+    if (!debateId || debateStatus !== "active") {
+      toast.error("Debate is not active");
+      return;
+    }
+    setShowCompleteDialog(true);
+  };
+
   const markDebateComplete = async () => {
-    if (!debateId || debateStatus !== "active" || !allPhasesComplete) {
-      toast.error("Debate is not ready to be marked as complete");
+    if (!debateId || debateStatus !== "active" || !selectedWinner) {
+      toast.error("Please select a winner");
       return;
     }
     
@@ -598,28 +617,79 @@ export default function Debate() {
       const debateData = debateDoc.data();
       const isUserHost = debateData.hostId === currentUser.uid;
       
-      // Mark the current player as having marked complete
+      // Mark the current player as having marked complete and store their winner selection
       const updateData: any = {};
       if (isUserHost) {
         updateData.hostMarkedComplete = true;
+        updateData.hostWinnerSelection = selectedWinner;
       } else {
         updateData.opponentMarkedComplete = true;
+        updateData.opponentWinnerSelection = selectedWinner;
       }
 
       // Check if both players have marked complete
       const hostMarkedCompleteNow = isUserHost ? true : (debateData.hostMarkedComplete === true);
       const opponentMarkedCompleteNow = isUserHost ? (debateData.opponentMarkedComplete === true) : true;
 
-      // If both players have marked complete, set status to completed
+      // Get winner selections
+      const hostSelection = isUserHost ? selectedWinner : (debateData.hostWinnerSelection);
+      const opponentSelection = isUserHost ? (debateData.opponentWinnerSelection) : selectedWinner;
+
+      // If both players have marked complete, check if they agree on winner
       if (hostMarkedCompleteNow && opponentMarkedCompleteNow) {
-        updateData.status = "completed";
-        updateData.completedAt = serverTimestamp();
-        await updateDoc(doc(db, "debates", debateId), updateData);
-        toast.success("Debate marked as completed!");
+        // Only update if debate is not already completed (prevent duplicate rating updates)
+        if (debateData.status !== "completed") {
+          // Determine winner - if both agree, use that; if tie selected by either, it's a tie; otherwise use host selection as default
+          let finalWinner: "host" | "opponent" | null = null;
+          if (hostSelection === "tie" || opponentSelection === "tie") {
+            finalWinner = null; // No winner for ties
+          } else if (hostSelection === opponentSelection) {
+            finalWinner = hostSelection as "host" | "opponent";
+          } else {
+            // Disagreement - default to host selection or use AI judge later
+            finalWinner = hostSelection as "host" | "opponent";
+          }
+
+          updateData.status = "completed";
+          updateData.completedAt = serverTimestamp();
+          if (finalWinner) {
+            updateData.winner = finalWinner;
+          }
+
+          await updateDoc(doc(db, "debates", debateId), updateData);
+
+          // Update ratings if there's a winner (only once when first completed)
+          if (finalWinner && debateData.hostId && debateData.opponentId) {
+            try {
+              const scoreHost = finalWinner === "host" ? 1 : 0;
+              await updateRatingsTransaction({
+                playerAId: debateData.hostId,
+                playerBId: debateData.opponentId,
+                scoreA: scoreHost,
+                matchId: debateId,
+              });
+              toast.success(`Debate completed! Ratings updated. ${finalWinner === "host" ? hostName : opponentName} wins.`);
+            } catch (ratingError) {
+              console.error("Error updating ratings:", ratingError);
+              toast.success("Debate marked as completed, but rating update failed.");
+            }
+          } else {
+            toast.success("Debate marked as completed (tie - no rating change).");
+          }
+        } else {
+          // Debate already completed, just update the current player's status
+          await updateDoc(doc(db, "debates", debateId), updateData);
+          toast.info("Debate is already completed.");
+        }
+
+        setShowCompleteDialog(false);
+        setSelectedWinner("");
       } else {
         // Just mark this player as complete
         await updateDoc(doc(db, "debates", debateId), updateData);
         toast.success("You've marked the debate as complete. Waiting for the other player...");
+        setShowCompleteDialog(false);
+        setSelectedWinner("");
       }
     } catch (error) {
       console.error("Error marking debate complete:", error);
@@ -1084,6 +1154,116 @@ export default function Debate() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Manual Mark Debate Complete - always available when active */}
+            {debateStatus === "active" && debateState.bothPlayersJoined && (
+              <Card className="border-2 border-primary">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-primary" />
+                    Mark Debate Complete
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {allPhasesComplete ? (
+                    <p className="text-sm text-muted-foreground">
+                      All phases have been completed. Both players must agree to mark this debate as complete.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      You can manually mark this debate as complete at any time. Both players must agree.
+                    </p>
+                  )}
+                  {isHost ? (
+                    <>
+                      <div className="flex gap-2">
+                        {hostMarkedComplete ? (
+                          <>
+                            <Button 
+                              onClick={unmarkDebateComplete} 
+                              variant="outline" 
+                              className="flex-1"
+                            >
+                              Unmark Complete
+                            </Button>
+                            <Button 
+                              variant="default" 
+                              className="flex-1"
+                              disabled
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              You Marked Complete
+                            </Button>
+                          </>
+                        ) : (
+                          <Button 
+                            onClick={handleOpenCompleteDialog} 
+                            variant="default" 
+                            className="w-full"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Mark Debate Complete
+                          </Button>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground space-y-1 text-center">
+                        <p>Host: {hostMarkedComplete ? "✓ Marked Complete" : "Not marked"}</p>
+                        <p>Opponent: {opponentMarkedComplete ? "✓ Marked Complete" : "Not marked"}</p>
+                        {hostWinnerSelection && (
+                          <p className="text-primary">Host selected: {hostWinnerSelection === "tie" ? "Tie" : hostWinnerSelection === "host" ? hostName : opponentName}</p>
+                        )}
+                        {opponentWinnerSelection && (
+                          <p className="text-primary">Opponent selected: {opponentWinnerSelection === "tie" ? "Tie" : opponentWinnerSelection === "host" ? hostName : opponentName}</p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex gap-2">
+                        {opponentMarkedComplete ? (
+                          <>
+                            <Button 
+                              onClick={unmarkDebateComplete} 
+                              variant="outline" 
+                              className="flex-1"
+                            >
+                              Unmark Complete
+                            </Button>
+                            <Button 
+                              variant="default" 
+                              className="flex-1"
+                              disabled
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              You Marked Complete
+                            </Button>
+                          </>
+                        ) : (
+                          <Button 
+                            onClick={handleOpenCompleteDialog} 
+                            variant="default" 
+                            className="w-full"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Mark Debate Complete
+                          </Button>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground space-y-1 text-center">
+                        <p>Host: {hostMarkedComplete ? "✓ Marked Complete" : "Not marked"}</p>
+                        <p>Opponent: {opponentMarkedComplete ? "✓ Marked Complete" : "Not marked"}</p>
+                        {hostWinnerSelection && (
+                          <p className="text-primary">Host selected: {hostWinnerSelection === "tie" ? "Tie" : hostWinnerSelection === "host" ? hostName : opponentName}</p>
+                        )}
+                        {opponentWinnerSelection && (
+                          <p className="text-primary">Opponent selected: {opponentWinnerSelection === "tie" ? "Tie" : opponentWinnerSelection === "host" ? hostName : opponentName}</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Right Column - Debate Info and Phases */}
@@ -1236,6 +1416,51 @@ export default function Debate() {
       <audio ref={audioRef} preload="auto">
         {/* In a real app, you'd add a notification sound file */}
       </audio>
+
+      {/* Winner Selection Dialog */}
+      <Dialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark Debate Complete</DialogTitle>
+            <DialogDescription>
+              Select the winner of this debate. Both players must agree for the debate to be marked as complete.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="winner-select">Winner</Label>
+              <Select value={selectedWinner} onValueChange={(value) => setSelectedWinner(value as "host" | "opponent" | "tie")}>
+                <SelectTrigger id="winner-select">
+                  <SelectValue placeholder="Select winner" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="host">{hostName} (Host)</SelectItem>
+                  <SelectItem value="opponent">{opponentName} (Opponent)</SelectItem>
+                  <SelectItem value="tie">Tie / No Winner</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {selectedWinner === "tie" 
+                  ? "Ties will not affect ratings." 
+                  : selectedWinner 
+                    ? `Selecting ${selectedWinner === "host" ? hostName : opponentName} as the winner will update both players' ratings.`
+                    : "Please select a winner to continue."}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowCompleteDialog(false);
+              setSelectedWinner("");
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={markDebateComplete} disabled={!selectedWinner}>
+              Mark Complete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
