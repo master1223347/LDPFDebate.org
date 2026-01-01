@@ -3,7 +3,6 @@ import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported as analyticsSupported } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -23,11 +22,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const functions = getFunctions(app);
-export { httpsCallable };
 export const analyticsPromise = analyticsSupported().then((yes) =>
   yes ? getAnalytics(app) : null
-);
+).catch((error) => {
+  console.warn('Analytics initialization failed:', error);
+  return null;
+});
 
 
 
