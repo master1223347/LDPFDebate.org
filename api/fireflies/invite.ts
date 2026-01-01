@@ -47,8 +47,8 @@ async function firefliesApiRequest(query: string, variables?: Record<string, unk
   }
 
   console.log('Fireflies API Request:', {
-    query: query.replace(/\s+/g, ' ').substring(0, 100),
-    variables: JSON.stringify(variables)
+    query: query.replace(/\s+/g, ' ').substring(0, 150),
+    variables
   });
 
   try {
@@ -63,25 +63,19 @@ async function firefliesApiRequest(query: string, variables?: Record<string, unk
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        timeout: 30000,
-        validateStatus: (status) => status < 500 // Don't throw on 4xx errors
+        timeout: 30000
       }
     );
 
     console.log('Fireflies API Response:', {
       status: response.status,
-      data: JSON.stringify(response.data)
+      data: JSON.stringify(response.data).substring(0, 500)
     });
 
-    // Handle GraphQL errors
     if (response.data.errors) {
       const errorMsg = response.data.errors.map((e: any) => e.message).join(', ');
+      console.error('GraphQL Errors:', response.data.errors);
       throw new Error(`Fireflies API error: ${errorMsg}`);
-    }
-
-    // Handle HTTP errors
-    if (response.status !== 200) {
-      throw new Error(`Fireflies API returned status ${response.status}: ${JSON.stringify(response.data)}`);
     }
 
     return response.data.data;
@@ -90,16 +84,19 @@ async function firefliesApiRequest(query: string, variables?: Record<string, unk
       console.error('Axios error:', {
         message: error.message,
         response: error.response?.data,
-        status: error.response?.status,
-        headers: error.response?.headers
+        status: error.response?.status
       });
       
       if (error.response?.status === 400) {
-        throw new Error(`Invalid request to Fireflies API. Check: 1) API key is valid, 2) Google Meet URL format is correct, 3) You have Fireflies API access`);
+        throw new Error(`Bad Request: ${JSON.stringify(error.response.data)}. Please check the meeting URL format and API parameters.`);
       }
       
       if (error.response?.status === 401 || error.response?.status === 403) {
-        throw new Error('Fireflies API authentication failed. Check your API key.');
+        throw new Error('Authentication failed. Please verify your Fireflies API key is correct.');
+      }
+
+      if (error.response?.status === 429) {
+        throw new Error('Rate limit exceeded. Fireflies allows 3 requests per 20 minutes for addToLiveMeeting.');
       }
     }
     
@@ -121,13 +118,16 @@ function validateGoogleMeetUrl(url: string): string {
     const meetingCode = urlObj.pathname.split('/').filter(Boolean).pop();
     
     if (!meetingCode || meetingCode.length < 8) {
-      throw new Error('Invalid Google Meet URL format');
+      throw new Error('Invalid Google Meet meeting code');
     }
 
-    // Return clean URL
+    // Return clean URL without query parameters for Fireflies
     return `https://meet.google.com/${meetingCode}`;
   } catch (error) {
-    throw new Error(`Invalid Google Meet URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    if (error instanceof Error && error.message.includes('URL')) {
+      throw error;
+    }
+    throw new Error('Invalid Google Meet URL format');
   }
 }
 
@@ -148,6 +148,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { googleMeetUrl, debateId, meetingTitle } = req.body;
+
+    console.log('Received invite request:', { 
+      hasUrl: !!googleMeetUrl, 
+      hasDebateId: !!debateId,
+      title: meetingTitle 
+    });
 
     // Validate required fields
     if (!googleMeetUrl || !debateId) {
@@ -171,80 +177,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Initialize Firebase Admin
     const db = initializeFirebaseAdmin();
 
-    // Try the Fireflies API request
-    // Note: The exact mutation format might vary - check Fireflies API docs
-    const createMeetingMutation = `
-      mutation($meetingUrl: String!, $title: String) {
-        addMeetingToBot(
-          meetingUrl: $meetingUrl
-          title: $title
-        ) {
+    // Use the correct Fireflies API mutation: addToLiveMeeting
+    // Documentation: https://docs.fireflies.ai/graphql-api/mutation/add-to-live
+    const addToLiveMeetingMutation = `
+      mutation AddToLiveMeeting($meetingLink: String!, $title: String) {
+        addToLiveMeeting(meeting_link: $meetingLink, title: $title) {
           success
-          meeting_id
         }
       }
     `;
 
-    let result;
-    try {
-      result = await firefliesApiRequest(createMeetingMutation, {
-        meetingUrl: cleanMeetUrl,
-        title: meetingTitle || `Debate ${debateId}`,
-      });
-    } catch (apiError) {
-      console.error('Fireflies API call failed:', apiError);
-      
-      // Try alternative mutation format
-      console.log('Trying alternative mutation format...');
-      
-      const alternativeMutation = `
-        mutation CreateMeeting($input: CreateMeetingInput!) {
-          createMeeting(input: $input) {
-            id
-            status
-          }
-        }
-      `;
-      
-      try {
-        result = await firefliesApiRequest(alternativeMutation, {
-          input: {
-            meetingUrl: cleanMeetUrl,
-            title: meetingTitle || `Debate ${debateId}`,
-          }
-        });
-      } catch (altError) {
-        throw new Error(`Both mutation formats failed. Please check Fireflies API documentation for the correct format. Original error: ${apiError instanceof Error ? apiError.message : String(apiError)}`);
-      }
-    }
-
-    // Extract meeting ID from response
-    const meetingId = 
-      result?.addMeetingToBot?.meeting_id || 
-      result?.createMeeting?.id ||
-      result?.createMeeting?.meetingId;
-
-    if (!meetingId) {
-      console.error('No meeting ID in response:', JSON.stringify(result));
-      throw new Error('Fireflies API did not return a meeting ID. Response: ' + JSON.stringify(result));
-    }
-
-    console.log('Fireflies meeting created with ID:', meetingId);
-
-    // Update debate document with Fireflies meeting ID
-    await db.collection('debates').doc(debateId).update({
-      firefliesMeetingId: meetingId,
-      transcriptionStatus: 'pending',
-      transcriptLastUpdated: FieldValue.serverTimestamp(),
-      googleMeetUrl: cleanMeetUrl, // Store the clean URL
+    const result = await firefliesApiRequest(addToLiveMeetingMutation, {
+      meetingLink: cleanMeetUrl,
+      title: meetingTitle || `Debate ${debateId}`,
     });
 
-    console.log('Firestore updated successfully');
+    console.log('Fireflies API result:', result);
+
+    // Check if the mutation was successful
+    const success = result?.addToLiveMeeting?.success;
+
+    if (!success) {
+      throw new Error('Fireflies did not confirm successful bot invitation. Response: ' + JSON.stringify(result));
+    }
+
+    // Update debate document
+    // Note: Fireflies doesn't return a meeting ID for addToLiveMeeting
+    // The bot joins the meeting directly
+    await db.collection('debates').doc(debateId).update({
+      firefliesInvited: true,
+      transcriptionStatus: 'active',
+      transcriptLastUpdated: FieldValue.serverTimestamp(),
+      googleMeetUrl: cleanMeetUrl,
+    });
+
+    console.log('Successfully invited Fireflies bot and updated Firestore');
 
     return res.status(200).json({
       success: true,
-      firefliesMeetingId: meetingId,
-      message: 'Fireflies bot invited successfully',
+      message: 'Fireflies bot invited successfully. It will join the meeting shortly.',
     });
   } catch (error: unknown) {
     console.error('Error in invite handler:', error);
