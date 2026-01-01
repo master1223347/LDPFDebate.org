@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getFirestore, serverTimestamp } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 
 // Initialize Firebase Admin if not already initialized
@@ -54,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const debateId = debateDoc.id;
 
     const updateData: Record<string, unknown> = {
-      transcriptLastUpdated: serverTimestamp(),
+      transcriptLastUpdated: FieldValue.serverTimestamp(),
     };
 
     if (transcript) updateData.transcript = transcript;
